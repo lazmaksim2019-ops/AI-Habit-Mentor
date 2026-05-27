@@ -1,8 +1,10 @@
+import json
 import logging
 import socket
 from urllib.parse import urlparse
 
 import dns.resolver
+import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -10,7 +12,13 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_FALLBACK_NS = ["8.8.8.8", "1.1.1.1"]
+_DOH_URL = "https://dns.google/resolve?name={name}&type=A"
+
+
+def _replace_host_with_ip(url: str, hostname: str, ip: str) -> str:
+    old_netloc = urlparse(url).netloc
+    new_netloc = old_netloc.replace(hostname, ip, 1)
+    return url.replace(old_netloc, new_netloc, 1)
 
 
 def _resolve_hostname(url: str) -> str:
@@ -19,25 +27,40 @@ def _resolve_hostname(url: str) -> str:
     if not hostname:
         return url
 
+    # 1 — system DNS (getaddrinfo)
     try:
         addrs = socket.getaddrinfo(hostname, parsed.port or 5432, socket.AF_INET)
         if addrs:
             ip = addrs[0][4][0]
             logger.info("DNS resolved %s -> %s (system)", hostname, ip)
-            return url.replace(parsed.netloc, parsed.netloc.replace(hostname, ip, 1), 1)
+            return _replace_host_with_ip(url, hostname, ip)
     except socket.gaierror:
-        logger.warning("System DNS failed for %s, trying fallback DNS...", hostname)
+        logger.warning("System DNS failed for %s", hostname)
 
+    # 2 — raw DNS queries via dnspython (port 53 UDP)
     try:
         resolver = dns.resolver.Resolver()
-        resolver.nameservers = _FALLBACK_NS
+        resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
         answers = resolver.resolve(hostname, "A")
         ip = str(answers[0])
-        logger.info("DNS resolved %s -> %s (fallback)", hostname, ip)
-        return url.replace(parsed.netloc, parsed.netloc.replace(hostname, ip, 1), 1)
+        logger.info("DNS resolved %s -> %s (udp)", hostname, ip)
+        return _replace_host_with_ip(url, hostname, ip)
     except Exception as e:
-        logger.error("Fallback DNS also failed for %s: %s", hostname, e)
+        logger.warning("UDP DNS failed for %s: %s", hostname, e)
 
+    # 3 — DNS-over-HTTPS (port 443, не блокируется Render)
+    try:
+        resp = httpx.get(_DOH_URL.format(name=hostname), timeout=10.0)
+        data = resp.json()
+        for answer in data.get("Answer", []):
+            if answer.get("type") == 1:
+                ip = answer["data"]
+                logger.info("DNS resolved %s -> %s (DoH)", hostname, ip)
+                return _replace_host_with_ip(url, hostname, ip)
+    except Exception as e:
+        logger.error("DoH also failed for %s: %s", hostname, e)
+
+    logger.error("All DNS methods failed for %s — connection will likely fail", hostname)
     return url
 
 
