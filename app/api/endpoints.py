@@ -9,7 +9,7 @@ from app.api.schemas import ChatRequest, ChatResponse, HabitLogRequest, HabitLog
 from app.core.config import settings
 from app.database.models import UserHabit, UserLink, UserVectorMemory
 from app.database.repository import get_relevant_memory
-from app.database.session import async_session, get_async_session
+from app.database.session import get_async_session, get_session_maker
 from app.services.ai.gemini import GeminiProvider
 from app.services.anonymizer import anonymize_text
 
@@ -56,7 +56,7 @@ async def _save_memory_background(
     ai_provider: GeminiProvider,
 ):
     try:
-        async with async_session() as session:
+        async with get_session_maker()() as session:
             combined_text = f"Вопрос: {cleaned_question}\nОтвет: {ai_answer}"
             embedding = await ai_provider.get_embedding(combined_text)
             if not embedding:
