@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import sys
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -14,8 +15,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+sys.stderr.write("[BOOT] importing app modules...\n")
 from app.api.endpoints import router as api_router
 from app.database.session import get_engine, init_db
+sys.stderr.write("[BOOT] imports OK\n")
 
 asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 
