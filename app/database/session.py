@@ -1,7 +1,7 @@
 import logging
 import socket
 import sys
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, urlencode, urlparse
 
 import dns.resolver
 from sqlalchemy import text
@@ -61,6 +61,26 @@ def _resolve_hostname(url: str) -> str:
     return url
 
 
+def _sanitize_url(url: str) -> str:
+    """Remove query params that asyncpg cannot handle (e.g. server_settings as string)."""
+    parsed = urlparse(url)
+    if not parsed.query:
+        return url
+    safe_params = {}
+    for key, val in [p.split("=", 1) for p in parsed.query.split("&") if "=" in p]:
+        if key.lower() not in ("server_settings",):
+            safe_params[key] = val
+    new_parsed = ParseResult(
+        scheme=parsed.scheme,
+        netloc=parsed.netloc,
+        path=parsed.path,
+        params=parsed.params,
+        query=urlencode(safe_params) if safe_params else "",
+        fragment=parsed.fragment,
+    )
+    return str(new_parsed)
+
+
 def get_engine():
     global _engine
     if _engine is not None:
@@ -71,7 +91,7 @@ def get_engine():
     if "supabase" in url_lower and "ssl=" not in url_lower:
         connect_args["ssl"] = True
 
-    engine_url = _resolve_hostname(settings.DATABASE_URL)
+    engine_url = _sanitize_url(_resolve_hostname(settings.DATABASE_URL))
     final_host = urlparse(engine_url).hostname
     print(f"[DNS-RESOLVE] Final engine host: {final_host}", file=sys.stderr)
 
