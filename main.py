@@ -8,14 +8,14 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.endpoints import router as api_router
-from app.database.session import engine, init_db
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+from app.api.endpoints import router as api_router
+from app.database.session import get_engine, init_db
 
 asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 
@@ -26,6 +26,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database tables initialized")
     yield
+    engine = get_engine()
     logger.info("Disposing database engine...")
     await engine.dispose()
 

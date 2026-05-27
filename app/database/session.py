@@ -1,5 +1,6 @@
 import logging
 import socket
+import sys
 from urllib.parse import urlparse
 
 import dns.resolver
@@ -10,10 +11,12 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Fallback IPs для Supabase pooler (AWS ELB — меняются редко)
 _IP_FALLBACK = {
     "aws-0-eu-central-1.pooler.supabase.com": "18.198.145.223",
 }
+
+_engine = None
+_async_session_maker = None
 
 
 def _replace_host_with_ip(url: str, hostname: str, ip: str) -> str:
@@ -25,49 +28,54 @@ def _replace_host_with_ip(url: str, hostname: str, ip: str) -> str:
 def _resolve_hostname(url: str) -> str:
     parsed = urlparse(url)
     hostname = parsed.hostname
+    print(f"[DNS-RESOLVE] Parsing URL, hostname={hostname}", file=sys.stderr)
+
     if not hostname:
         return url
 
-    # 1 — system DNS (getaddrinfo)
     try:
         addrs = socket.getaddrinfo(hostname, parsed.port or 5432, socket.AF_INET)
         if addrs:
             ip = addrs[0][4][0]
-            logger.info("DNS resolved %s -> %s (system)", hostname, ip)
+            print(f"[DNS-RESOLVE] System DNS: {hostname} -> {ip}", file=sys.stderr)
             return _replace_host_with_ip(url, hostname, ip)
     except socket.gaierror:
-        logger.warning("System DNS failed for %s", hostname)
+        print(f"[DNS-RESOLVE] System DNS failed for {hostname}", file=sys.stderr)
 
-    # 2 — raw UDP DNS via dnspython (port 53, может быть заблокирован)
     try:
         resolver = dns.resolver.Resolver()
         resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
         answers = resolver.resolve(hostname, "A")
         ip = str(answers[0])
-        logger.info("DNS resolved %s -> %s (udp)", hostname, ip)
+        print(f"[DNS-RESOLVE] UDP DNS: {hostname} -> {ip}", file=sys.stderr)
         return _replace_host_with_ip(url, hostname, ip)
     except Exception as e:
-        logger.warning("UDP DNS failed for %s: %s", hostname, e)
+        print(f"[DNS-RESOLVE] UDP DNS failed: {e}", file=sys.stderr)
 
-    # 3 — hardcoded fallback (известные IP Supabase pooler)
     hardcoded = _IP_FALLBACK.get(hostname)
     if hardcoded:
-        logger.info("DNS resolved %s -> %s (hardcoded)", hostname, hardcoded)
+        print(f"[DNS-RESOLVE] Hardcoded: {hostname} -> {hardcoded}", file=sys.stderr)
         return _replace_host_with_ip(url, hostname, hardcoded)
 
-    logger.error("All DNS methods exhausted for %s", hostname)
+    print(f"[DNS-RESOLVE] ALL METHODS FAILED for {hostname}", file=sys.stderr)
     return url
 
 
-def _build_engine():
+def get_engine():
+    global _engine
+    if _engine is not None:
+        return _engine
+
     connect_args = {}
     url_lower = settings.DATABASE_URL.lower()
     if "supabase" in url_lower and "ssl=" not in url_lower:
         connect_args["ssl"] = True
 
     engine_url = _resolve_hostname(settings.DATABASE_URL)
+    final_host = urlparse(engine_url).hostname
+    print(f"[DNS-RESOLVE] Final engine host: {final_host}", file=sys.stderr)
 
-    return create_async_engine(
+    _engine = create_async_engine(
         engine_url,
         echo=False,
         pool_size=10,
@@ -76,21 +84,28 @@ def _build_engine():
         pool_recycle=1800,
         connect_args=connect_args,
     )
+    return _engine
 
 
-engine = _build_engine()
-
-async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+def get_session_maker():
+    global _async_session_maker
+    if _async_session_maker is None:
+        _async_session_maker = async_sessionmaker(
+            get_engine(), class_=AsyncSession, expire_on_commit=False
+        )
+    return _async_session_maker
 
 
 async def get_async_session():
-    async with async_session() as session:
+    maker = get_session_maker()
+    async with maker() as session:
         yield session
 
 
 async def init_db():
     from app.database.models import Base
 
+    engine = get_engine()
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
