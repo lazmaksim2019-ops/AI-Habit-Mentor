@@ -1,10 +1,8 @@
-import json
 import logging
 import socket
 from urllib.parse import urlparse
 
 import dns.resolver
-import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -12,7 +10,10 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_DOH_URL = "https://dns.google/resolve?name={name}&type=A"
+# Fallback IPs для Supabase pooler (AWS ELB — меняются редко)
+_IP_FALLBACK = {
+    "aws-0-eu-central-1.pooler.supabase.com": "18.198.145.223",
+}
 
 
 def _replace_host_with_ip(url: str, hostname: str, ip: str) -> str:
@@ -37,7 +38,7 @@ def _resolve_hostname(url: str) -> str:
     except socket.gaierror:
         logger.warning("System DNS failed for %s", hostname)
 
-    # 2 — raw DNS queries via dnspython (port 53 UDP)
+    # 2 — raw UDP DNS via dnspython (port 53, может быть заблокирован)
     try:
         resolver = dns.resolver.Resolver()
         resolver.nameservers = ["8.8.8.8", "1.1.1.1"]
@@ -48,19 +49,13 @@ def _resolve_hostname(url: str) -> str:
     except Exception as e:
         logger.warning("UDP DNS failed for %s: %s", hostname, e)
 
-    # 3 — DNS-over-HTTPS (port 443, не блокируется Render)
-    try:
-        resp = httpx.get(_DOH_URL.format(name=hostname), timeout=10.0)
-        data = resp.json()
-        for answer in data.get("Answer", []):
-            if answer.get("type") == 1:
-                ip = answer["data"]
-                logger.info("DNS resolved %s -> %s (DoH)", hostname, ip)
-                return _replace_host_with_ip(url, hostname, ip)
-    except Exception as e:
-        logger.error("DoH also failed for %s: %s", hostname, e)
+    # 3 — hardcoded fallback (известные IP Supabase pooler)
+    hardcoded = _IP_FALLBACK.get(hostname)
+    if hardcoded:
+        logger.info("DNS resolved %s -> %s (hardcoded)", hostname, hardcoded)
+        return _replace_host_with_ip(url, hostname, hardcoded)
 
-    logger.error("All DNS methods failed for %s — connection will likely fail", hostname)
+    logger.error("All DNS methods exhausted for %s", hostname)
     return url
 
 
