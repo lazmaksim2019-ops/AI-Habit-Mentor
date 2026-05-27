@@ -1,6 +1,6 @@
-import asyncio
 import logging
 import os
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -16,10 +16,22 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing database tables...")
+    await init_db()
+    logger.info("Database tables initialized")
+    yield
+    logger.info("Disposing database engine...")
+    await engine.dispose()
+
+
 app = FastAPI(
     title="Neuro-Adaptive AI Habit Mentor",
     version="1.0.0",
     description="Backend for Telegram Mini App — AI habit tracking with vector memory and FZ-152 compliance",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -40,19 +52,6 @@ async def global_exception_handler(request: Request, exc: Exception):
         status_code=500,
         content={"detail": "Внутренняя ошибка сервера. Попробуйте позже."},
     )
-
-
-@app.on_event("startup")
-async def on_startup():
-    logger.info("Initializing database tables...")
-    await init_db()
-    logger.info("Database tables initialized")
-
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    logger.info("Disposing database engine...")
-    await engine.dispose()
 
 
 @app.get("/health")
