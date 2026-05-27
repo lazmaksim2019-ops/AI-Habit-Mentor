@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -15,6 +16,8 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 
 
 @asynccontextmanager
