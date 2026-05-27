@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic[email]>=2.0
+pydantic-settings
+asyncpg
+sqlalchemy[ext_asyncio]
+httpx
+python-dotenv
+pgvector

@@ -1,0 +1,69 @@
+import asyncio
+import logging
+
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.api.endpoints import router as api_router
+from app.database.session import engine, init_db
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(
+    title="Neuro-Adaptive AI Habit Mentor",
+    version="1.0.0",
+    description="Backend for Telegram Mini App — AI habit tracking with vector memory and FZ-152 compliance",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(api_router)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception on %s %s", request.method, request.url)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Внутренняя ошибка сервера. Попробуйте позже."},
+    )
+
+
+@app.on_event("startup")
+async def on_startup():
+    logger.info("Initializing database tables...")
+    await init_db()
+    logger.info("Database tables initialized")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    logger.info("Disposing database engine...")
+    await engine.dispose()
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=False,
+        log_level="info",
+    )
