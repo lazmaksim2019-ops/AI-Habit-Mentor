@@ -40,9 +40,55 @@
 - **Inline-виджеты:** DatePicker, Strategy Choice, Trigger Logger — прямо в чате
 - **Векторная память (pgvector):** AI помнит ваши прошлые диалоги семантически (top-3 cosine search)
 - **Трекер с прогревом:** countdown до Дня Х, лог триггеров с интенсивностью 1–10, streak, чек-лист формирования
-- **ФЗ-152 compliance:** анонимизация данных через UUIDv4, маскировка PII
-- **Фазовый автомат:** сервер детектит фазу по привычкам и истории, AI не может вернуться на пройденный этап
 - **Негативный фильтр:** запрещены банальные советы («подыши», «отвлекись», «выпей воды») — блокируются на уровне промпта
+- **Фазовый автомат:** сервер детектит фазу по привычкам и истории, AI не может вернуться на пройденный этап
+
+---
+
+## Соответствие ФЗ-152 «О персональных данных»
+
+Система спроектирована для работы в контуре РФ с нулевым риском утечки ПДн вовне:
+
+### 1. Анонимизация данных (маскировщик)
+Все входящие сообщения проходят через `anonymize_text()` в `app/services/anonymizer.py`:
+- Имена и фамилии → `[NAME]`
+- Номера телефонов → `[PHONE]`
+- Email-адреса → `[EMAIL]`
+- Ссылки и username (@, t.me) → `[LINK]`
+
+Таким образом, ни одно ПДн не покидает периметр сервера — внешняя LLM получает только обезличенный текст.
+
+### 2. UUIDv4 изоляция
+- Внутри БД и AI-логики используется только случайный `UUIDv4`, не связанный с реальной личностью
+- Связка `telegram_id → user_uuid` хранится в изолированной таблице `user_links` на сервере в РФ
+- Даже при утечке БД восстановить реального пользователя по UUID невозможно
+
+### 3. AI-провайдер — смена на YandexGPT одной строкой
+
+На тестовом контуре используется **Gemini 3.1 Flash Lite** (через прокси для РФ). Для продакшена архитектура позволяет переключиться на **YandexGPT** изменением одного файла:
+
+```python
+# app/services/ai/base.py — абстрактный класс
+class BaseAIProvider(ABC):
+    async def get_embedding(self, text: str) -> List[float]: ...
+    async def generate_response(self, system_instruction, history, current_message) -> str: ...
+
+# app/services/ai/gemini.py — текущая реализация (тест)
+class GeminiProvider(BaseAIProvider): ...
+
+# app/services/ai/yandex.py — для продакшена (реализуется один раз)
+class YandexGPTProvider(BaseAIProvider): ...
+```
+
+**Что нужно сделать для перехода на YandexGPT:**
+
+| Шаг | Где | Что менять |
+|-----|-----|------------|
+| 1 | `app/core/config.py` | `GEMINI_API_KEY` → `YANDEX_API_KEY`, `GEMINI_MODEL` → `YANDEX_MODEL` |
+| 2 | `app/services/ai/yandex.py` | Создать класс `YandexGPTProvider(BaseAIProvider)` с методами `get_embedding` и `generate_response` |
+| 3 | `app/api/endpoints.py` | `GeminiProvider(...)` → `YandexGPTProvider(...)` (одна строка импорта + одна строка вызова) |
+
+Все данные остаются на территории РФ: БД (Neon.tech с репликой в РФ), AI-ядро (YandexGPT), код (Render / собственный сервер).
 
 ---
 
