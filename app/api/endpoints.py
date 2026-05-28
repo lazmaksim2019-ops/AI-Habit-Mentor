@@ -1,5 +1,7 @@
+import json
 import logging
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -9,11 +11,14 @@ from app.api.schemas import (
     ChatRequest,
     ChatResponse,
     HabitCreateBatchRequest,
-    HabitCreateItem,
     HabitLogRequest,
     HabitLogResponse,
     HabitResponse,
     HabitsListResponse,
+    LogTriggerRequest,
+    MetaKOD,
+    SetTargetDateRequest,
+    TriggerLog,
 )
 from app.core.config import settings
 from app.database.models import UserHabit, UserLink, UserVectorMemory
@@ -45,16 +50,24 @@ async def _get_or_create_user(telegram_id: int, session: AsyncSession) -> uuid.U
 
 async def _get_user_habits_context(user_uuid: uuid.UUID, session: AsyncSession) -> str:
     result = await session.execute(
-        select(UserHabit).where(UserHabit.user_uuid == user_uuid)
+        select(UserHabit).where(UserHabit.user_uuid == user_uuid).order_by(UserHabit.created_at.desc()).limit(50)
     )
     habits = result.scalars().all()
     if not habits:
         return "У пользователя пока нет записанных привычек."
 
-    lines = ["Привычки пользователя:"]
+    lines = ["Привычки пользователя (JSON-массив для парсинга):"]
     for h in habits:
-        status = "выполнена" if h.is_completed else "не выполнена"
-        lines.append(f"- {h.title} [{h.category}] — {status}")
+        meta = h.meta_kod or {}
+        lines.append(json.dumps({
+            "id": str(h.id),
+            "name": h.name,
+            "type": h.type,
+            "category": h.category,
+            "status": h.status,
+            "target_date": h.target_date.isoformat() if h.target_date else None,
+            "meta_kod": meta,
+        }, ensure_ascii=False))
     return "\n".join(lines)
 
 
@@ -84,31 +97,91 @@ async def _save_memory_background(
         logger.error("Failed to save vector memory for user %s: %s", user_uuid, e)
 
 
-def _build_system_prompt(habits_context: str, memory_context: str, gender: str = "male") -> str:
+def _serialize_habits_context(habits_data: list[UserHabit]) -> str:
+    items = []
+    for h in habits_data:
+        meta = h.meta_kod or {}
+        items.append(json.dumps({
+            "id": str(h.id),
+            "name": h.name,
+            "type": h.type,
+            "category": h.category,
+            "status": h.status,
+            "target_date": h.target_date.isoformat() if h.target_date else None,
+            "meta_kod": meta,
+            "logs_count": len(h.logs or []),
+        }, ensure_ascii=False))
+    return "[\n" + ",\n".join(items) + "\n]" if items else "[]"
+
+
+def _build_system_prompt(habits_data: list[UserHabit], memory_context: str, gender: str = "male") -> str:
     gender_instruction = (
-        "Обращайся к пользователю в женском роде (готова, сделала, ты молодец)."
+        "Обращайся к пользователю в женском роде (готова, сделала)."
         if gender == "female"
-        else "Обращайся к пользователю в мужском роде (готов, сделал, ты молодец)."
+        else "Обращайся к пользователю в мужском роде (готов, сделал)."
     )
-    return f"""Ты — AI-Mentor, высокотехнологичная система когнитивного инжиниринга. Твоя цель — перестроить автоматизмы пользователя и сформировать у него устойчивую целевую доминанту.
 
-ПРАВИЛА ИНТЕРФЕЙСА И ЛОГИКИ:
-1. Ты общаешься строго, лаконично, без эзотерики, "успешного успеха" и пустой мотивации. Только научный, системный и инженерный подход.
-2. В конце каждого ответа ты ОБЯЗАН предложить от 1 до 3 конкретных, измеримых микро-действий (привычек/операторов), обёрнутых в тег [ADD_HABIT: ...]. Пример: "Предлагаю добавить: [ADD_HABIT: Назначить День Х] и [ADD_HABIT: Выбросить сигареты]."
-3. Текст для тега [ADD_HABIT: ...] должен быть ультра-коротким действием (до 40 символов). Никаких "Выбери дату отказа", только: "Назначить День Х", "Выбросить триггеры", "Купить замену".
+    habits_json = _serialize_habits_context(habits_data)
 
-{gender_instruction}
+    return f"""Ты — AI-Mentor, система когнитивного инжиниринга. Работаешь строго по протоколу K-O-D (Категория — Оператор — Определение).
 
-{habits_context}
+## ФОРМАТ ОТВЕТА
+Каждый твой ответ — это ВАЛИДНЫЙ JSON со структурой:
+{{
+  "message": "Текст для пользователя (один шаг — один вопрос или предписание, строго, научно, без воды)",
+  "action": {{
+    "type": "NONE" | "TRIGGER_UI_WIDGET",
+    "payload": {{}} | {{ "widget_type": "DATE_PICKER", "meta": {{ "habit_name": "...", "habit_type": "pre_destruction" }} }}
+  }}
+}}
 
-Контекст из прошлых диалогов пользователя (долгосрочная память):
-{memory_context or "Прошлых диалогов нет."}
+### Когда использовать DATE_PICKER
+Когда пользователь называет дату (День Х) или ты решаешь, что пора зафиксировать target_date — верни action с widget_type: "DATE_PICKER". Фронтенд покажет календарь.
 
-СТРАТЕГИЯ ВЕДЕНИЯ К ЦЕЛИ:
-- Не задавай по 5 вопросов за раз. Один шаг — один точечный вопрос.
-- Сначала зафиксируй точку старта (День Х), затем изолируй триггеры, затем внедри замещающее действие. Веди пользователя по этой архитектурной цепочке.
-- Используй правильные склонения исходя из переданного пола пользователя.
-- Не запрашивай персональные данные пользователя."""
+### Когда action = NONE
+Обычный диалог, аналитика, вопросы. Не добавляй action, если не нужно вызывать UI.
+
+## ЖИЗНЕННЫЙ ЦИКЛ ПРИВЫЧКИ (автомат)
+- pre_destruction — подготовка: диагностика, назначение Дня Х, уборка триггеров. В трекере — таймер обратного отсчёта.
+- destruction — День Х наступил: ломаем старый паттерн. В трекере — кнопка «Зафиксировать триггер» со счётчиком.
+- stabilization — закрепление нового паттерна (21+ день). Чек-бокс выполнено.
+- completed — цель достигнута.
+
+Определи текущую фазу по данным привычек. Если target_date не назначен — фаза pre_destruction.
+
+## ДОСТУПНЫЕ ПРИВЫЧКИ (JSON-массив)
+{habits_json}
+
+## СТИЛЬ И ОГРАНИЧЕНИЯ
+- Никакой мотивационной воды. Только научный, системный, инженерный подход.
+- Один шаг = один вопрос ИЛИ одно предписание. Не более.
+- {gender_instruction}
+- Не запрашивай личные данные.
+- Используй правильные склонения исходя из пола пользователя.
+
+Долгосрочная память:
+{memory_context or "Прошлых диалогов нет."}"""
+
+
+def _habit_to_response(h: UserHabit) -> HabitResponse:
+    meta = h.meta_kod or {}
+    logs_raw = h.logs or []
+    return HabitResponse(
+        id=str(h.id),
+        name=h.name,
+        type=h.type,
+        category=h.category,
+        meta_kod=MetaKOD(
+            category=meta.get("category", ""),
+            operator=meta.get("operator", ""),
+            determination=meta.get("determination", ""),
+        ),
+        target_date=h.target_date.isoformat() if h.target_date else None,
+        status=h.status,
+        logs=[TriggerLog(**l) if isinstance(l, dict) else TriggerLog() for l in logs_raw],
+        created_at=h.created_at,
+        updated_at=h.updated_at,
+    )
 
 
 @router.post("/api/chat", response_model=ChatResponse)
@@ -132,9 +205,12 @@ async def chat(
 
     memory_context = await get_relevant_memory(session, user_uuid, embedding)
 
-    habits_context = await _get_user_habits_context(user_uuid, session)
+    result = await session.execute(
+        select(UserHabit).where(UserHabit.user_uuid == user_uuid).order_by(UserHabit.created_at.desc()).limit(50)
+    )
+    habits_data = list(result.scalars().all())
 
-    system_prompt = _build_system_prompt(habits_context, memory_context, gender=request.gender)
+    system_prompt = _build_system_prompt(habits_data, memory_context, gender=request.gender)
 
     history: list = []
     ai_reply = await ai_provider.generate_response(system_prompt, history, cleaned_message)
@@ -148,6 +224,117 @@ async def chat(
     )
 
     return ChatResponse(reply=ai_reply)
+
+
+@router.get("/api/habits", response_model=HabitsListResponse)
+async def get_habits(
+    telegram_id: int = Query(..., description="Telegram user ID"),
+    session: AsyncSession = Depends(get_async_session),
+):
+    user_uuid = await _get_or_create_user(telegram_id, session)
+    result = await session.execute(
+        select(UserHabit)
+        .where(UserHabit.user_uuid == user_uuid)
+        .order_by(UserHabit.created_at.desc())
+        .limit(200)
+    )
+    habits = result.scalars().all()
+    return HabitsListResponse(habits=[_habit_to_response(h) for h in habits])
+
+
+@router.post("/api/habits/batch-create")
+async def batch_create_habits(
+    request: HabitCreateBatchRequest,
+    session: AsyncSession = Depends(get_async_session),
+):
+    user_uuid = await _get_or_create_user(request.telegram_id, session)
+    created = []
+    for h in request.habits:
+        meta = h.meta_kod or MetaKOD()
+        habit = UserHabit(
+            user_uuid=user_uuid,
+            name=h.name,
+            type=h.type,
+            category=h.category,
+            meta_kod=meta.model_dump(),
+            status="active",
+            logs=[],
+        )
+        session.add(habit)
+        created.append(habit)
+    await session.commit()
+    for habit in created:
+        await session.refresh(habit)
+
+    logger.info("Batch created %d habits for user %s", len(created), user_uuid)
+    return HabitsListResponse(habits=[_habit_to_response(h) for h in created])
+
+
+@router.post("/api/habits/set-target-date")
+async def set_habit_target_date(
+    request: SetTargetDateRequest,
+    session: AsyncSession = Depends(get_async_session),
+):
+    user_uuid = await _get_or_create_user(request.telegram_id, session)
+
+    result = await session.execute(
+        select(UserHabit)
+        .where(UserHabit.user_uuid == user_uuid, UserHabit.name == request.name)
+        .order_by(UserHabit.created_at.desc())
+        .limit(1)
+    )
+    habit = result.scalar_one_or_none()
+
+    if habit is None:
+        habit = UserHabit(
+            user_uuid=user_uuid,
+            name=request.name,
+            type=request.type,
+            category="custom",
+            meta_kod={},
+            status="active",
+            target_date=datetime.fromisoformat(request.target_date),
+            logs=[],
+        )
+        session.add(habit)
+    else:
+        habit.target_date = datetime.fromisoformat(request.target_date)
+        habit.type = request.type
+
+    await session.commit()
+    await session.refresh(habit)
+
+    logger.info("Set target_date for habit '%s' user %s → %s", habit.name, user_uuid, request.target_date)
+    return _habit_to_response(habit)
+
+
+@router.post("/api/habits/log-trigger")
+async def log_trigger(
+    request: LogTriggerRequest,
+    session: AsyncSession = Depends(get_async_session),
+):
+    user_uuid = await _get_or_create_user(request.telegram_id, session)
+
+    result = await session.execute(
+        select(UserHabit).where(UserHabit.id == request.habit_id, UserHabit.user_uuid == user_uuid)
+    )
+    habit = result.scalar_one_or_none()
+    if not habit:
+        raise HTTPException(status_code=404, detail="Habit not found")
+
+    logs = list(habit.logs or [])
+    logs.append({
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "intensity": request.intensity,
+        "note": request.note,
+    })
+    habit.logs = logs
+
+    await session.commit()
+    await session.refresh(habit)
+
+    logger.info("Logged trigger for habit '%s' user %s (intensity=%d)", habit.name, user_uuid, request.intensity)
+    return _habit_to_response(habit)
 
 
 @router.post("/api/habits/log", response_model=HabitLogResponse)
@@ -164,91 +351,23 @@ async def log_habit(
 
     habit = UserHabit(
         user_uuid=user_uuid,
-        title=request.title,
+        name=request.title,
         category=request.category,
+        type="pre_destruction",
         is_completed=request.is_completed,
+        meta_kod={},
+        logs=[],
     )
     session.add(habit)
     await session.commit()
     await session.refresh(habit)
 
-    logger.info(
-        "Logged habit '%s' for user %s (completed=%s)",
-        habit.title,
-        habit.user_uuid,
-        habit.is_completed,
-    )
-
     return HabitLogResponse(
-        id=habit.id,
-        title=habit.title,
+        id=str(habit.id),
+        title=habit.name,
         category=habit.category,
         is_completed=habit.is_completed,
         updated_at=habit.updated_at,
-    )
-
-
-@router.get("/api/habits", response_model=HabitsListResponse)
-async def get_habits(
-    telegram_id: int = Query(..., description="Telegram user ID"),
-    session: AsyncSession = Depends(get_async_session),
-):
-    user_uuid = await _get_or_create_user(telegram_id, session)
-    result = await session.execute(
-        select(UserHabit)
-        .where(UserHabit.user_uuid == user_uuid)
-        .order_by(UserHabit.updated_at.desc())
-        .limit(200)
-    )
-    habits = result.scalars().all()
-    return HabitsListResponse(
-        habits=[
-            HabitResponse(
-                id=h.id,
-                title=h.title,
-                category=h.category,
-                is_completed=h.is_completed,
-                updated_at=h.updated_at,
-                created_at=h.updated_at,
-            )
-            for h in habits
-        ]
-    )
-
-
-@router.post("/api/habits/batch-create")
-async def batch_create_habits(
-    request: HabitCreateBatchRequest,
-    session: AsyncSession = Depends(get_async_session),
-):
-    user_uuid = await _get_or_create_user(request.telegram_id, session)
-    created = []
-    for h in request.habits:
-        habit = UserHabit(
-            user_uuid=user_uuid,
-            title=h.title,
-            category=h.category,
-            is_completed=False,
-        )
-        session.add(habit)
-        created.append(habit)
-    await session.commit()
-    for habit in created:
-        await session.refresh(habit)
-
-    logger.info("Batch created %d habits for user %s", len(created), user_uuid)
-    return HabitsListResponse(
-        habits=[
-            HabitResponse(
-                id=h.id,
-                title=h.title,
-                category=h.category,
-                is_completed=h.is_completed,
-                updated_at=h.updated_at,
-                created_at=h.updated_at,
-            )
-            for h in created
-        ]
     )
 
 
@@ -265,7 +384,6 @@ async def diagnostic():
         "proxy_url": "configured" if settings.proxy_url else "not configured",
     }
 
-    # Try a quick Gemini ping
     try:
         import httpx
         provider = GeminiProvider(

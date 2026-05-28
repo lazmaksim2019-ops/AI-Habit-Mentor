@@ -50,3 +50,32 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
+        # Safe migrations for Neon.tech
+        await conn.execute(text(
+            "ALTER TABLE user_habits ADD COLUMN IF NOT EXISTS target_date TIMESTAMPTZ"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE user_habits ADD COLUMN IF NOT EXISTS status VARCHAR(20) NOT NULL DEFAULT 'active'"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE user_habits ADD COLUMN IF NOT EXISTS type VARCHAR(20) NOT NULL DEFAULT 'pre_destruction'"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE user_habits ADD COLUMN IF NOT EXISTS meta_kod JSONB DEFAULT '{}'::jsonb"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE user_habits ADD COLUMN IF NOT EXISTS logs JSONB DEFAULT '[]'::jsonb"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE user_habits ADD COLUMN IF NOT EXISTS name VARCHAR(255)"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE user_habits ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now()"
+        ))
+        # Migrate title -> name if name is null
+        await conn.execute(text(
+            "UPDATE user_habits SET name = title WHERE name IS NULL"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE user_habits ALTER COLUMN name SET NOT NULL"
+        ))

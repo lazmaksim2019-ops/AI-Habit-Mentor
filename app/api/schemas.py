@@ -11,20 +11,34 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    reply: str = Field(..., description="AI assistant reply")
+    reply: str = Field(..., description="AI assistant raw reply (may contain mixed JSON/text)")
+
+
+class MetaKOD(BaseModel):
+    category: str = Field(default="", description="K-O-D category")
+    operator: str = Field(default="", description="K-O-D operator")
+    determination: str = Field(default="", description="K-O-D determination")
+
+
+class TriggerLog(BaseModel):
+    timestamp: str = Field(default="", description="ISO datetime of trigger")
+    intensity: int = Field(default=1, ge=1, le=10, description="Trigger intensity 1-10")
+    note: str = Field(default="", description="Optional user note")
 
 
 class HabitLogRequest(BaseModel):
-    telegram_id: int | None = Field(default=None, description="Telegram user ID (alternative to user_uuid)")
+    telegram_id: int | None = Field(default=None, description="Telegram user ID")
     user_uuid: UUID | None = Field(default=None, description="Anonymous user UUID")
-    title: str = Field(..., min_length=1, max_length=255, description="Habit title")
+    title: str = Field(..., min_length=1, max_length=255, description="Habit name")
     category: str = Field(default="general", max_length=100, description="Habit category")
     is_completed: bool = Field(default=True, description="Completion status")
 
 
 class HabitCreateItem(BaseModel):
-    title: str = Field(..., min_length=1, max_length=255, description="Habit title")
+    name: str = Field(..., min_length=1, max_length=255, description="Habit name")
     category: str = Field(default="custom", max_length=100, description="Habit category")
+    type: str = Field(default="pre_destruction", pattern="^(pre_destruction|destruction|stabilization)$")
+    meta_kod: MetaKOD = Field(default=MetaKOD())
 
 
 class HabitCreateBatchRequest(BaseModel):
@@ -32,21 +46,39 @@ class HabitCreateBatchRequest(BaseModel):
     habits: list[HabitCreateItem] = Field(..., min_length=1, max_length=20)
 
 
+class SetTargetDateRequest(BaseModel):
+    telegram_id: int = Field(..., description="Telegram user ID")
+    name: str = Field(..., min_length=1, max_length=255, description="Habit name")
+    target_date: str = Field(..., description="Target date in YYYY-MM-DD format")
+    type: str = Field(default="pre_destruction", pattern="^(pre_destruction|destruction|stabilization)$")
+
+
 class HabitLogResponse(BaseModel):
-    id: int
+    id: str
     title: str
     category: str
     is_completed: bool
     updated_at: datetime
+
+
+class LogTriggerRequest(BaseModel):
+    telegram_id: int = Field(..., description="Telegram user ID")
+    habit_id: str = Field(..., description="Habit UUID")
+    intensity: int = Field(default=1, ge=1, le=10, description="Trigger intensity")
+    note: str = Field(default="", max_length=500, description="Optional note")
 
 
 class HabitResponse(BaseModel):
-    id: int
-    title: str
-    category: str
-    is_completed: bool
-    updated_at: datetime
+    id: str
+    name: str
+    type: str = "pre_destruction"
+    category: str = "custom"
+    meta_kod: MetaKOD = Field(default=MetaKOD())
+    target_date: str | None = None
+    status: str = "active"
+    logs: list[TriggerLog] = Field(default=[])
     created_at: datetime | None = None
+    updated_at: datetime | None = None
 
 
 class HabitsListResponse(BaseModel):

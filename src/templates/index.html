@@ -256,11 +256,53 @@
             -webkit-tap-highlight-color: transparent;
         }
         .gender-btn:active { transform: scale(0.96); }
-        .gender-btn.selected {
+            .gender-btn.selected {
             border-color: var(--tg-button);
             background: rgba(139,92,246,0.12);
             color: var(--tg-text);
         }
+
+        .phase-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 10px; border-radius: 20px;
+            font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px;
+        }
+        .phase-badge.preparation { background: rgba(251,146,60,0.15); color: #fb923c; }
+        .phase-badge.dismantling { background: rgba(239,68,68,0.15); color: #f87171; }
+        .phase-badge.stabilization { background: rgba(74,222,128,0.15); color: #4ade80; }
+        .phase-badge.completed { background: rgba(96,165,250,0.15); color: #60a5fa; }
+
+        .countdown-timer {
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.5px;
+        }
+
+        .datepicker-overlay {
+            position: fixed; inset: 0; z-index: 9998;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            display: none; align-items: center; justify-content: center;
+            padding: 24px;
+            animation: fadeIn 0.2s ease;
+        }
+        .datepicker-overlay.open { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .datepicker-overlay .datepicker-card {
+            background: var(--tg-bg);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 20px;
+            padding: 24px;
+            width: 100%; max-width: 340px;
+            animation: slideUp 0.25s ease;
+        }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .datepicker-overlay input[type="date"] {
+            width: 100%; padding: 12px 14px;
+            border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            background: var(--tg-secondary-bg); color: var(--tg-text);
+            font-size: 16px; font-family: inherit; outline: none;
+        }
+        .datepicker-overlay input[type="date"]:focus { border-color: var(--tg-button); }
 
         .suggested-habit-card {
             background: var(--tg-secondary-bg);
@@ -492,6 +534,42 @@
     </div>
 </div>
 
+<!-- ═══ DATE PICKER MODAL ═══ -->
+<div class="datepicker-overlay" id="datepicker-overlay">
+    <div class="datepicker-card">
+        <h3 class="text-base font-bold mb-1" id="datepicker-title">Назначить День Х</h3>
+        <p class="text-xs mb-4" style="color:var(--tg-hint);" id="datepicker-subtitle">Выбери дату, когда начинаешь трансформацию</p>
+        <input type="date" id="datepicker-input" min="" />
+        <div class="flex gap-2 mt-4">
+            <button id="datepicker-cancel" class="flex-1 py-2.5 rounded-xl text-sm font-medium" style="background:var(--tg-secondary-bg); color:var(--tg-hint); border:1px solid rgba(255,255,255,0.06);">Отмена</button>
+            <button id="datepicker-confirm" class="flex-1 py-2.5 rounded-xl text-sm font-bold" style="background:var(--tg-button); color:var(--tg-button-text);">Подтвердить</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TRIGGER LOGGER MODAL ═══ -->
+<div class="datepicker-overlay" id="trigger-overlay">
+    <div class="datepicker-card">
+        <h3 class="text-base font-bold mb-1">🔥 Зафиксировать триггер</h3>
+        <p class="text-xs mb-4" style="color:var(--tg-hint);" id="trigger-habit-name">—</p>
+        <div class="space-y-4">
+            <div>
+                <label class="text-xs font-medium mb-2 block" style="color:var(--tg-text);">Интенсивность позыва: <span id="trigger-intensity-value" class="font-bold">5</span></label>
+                <input type="range" id="trigger-intensity" min="1" max="10" value="5" style="width:100%;accent-color:var(--tg-button);" />
+                <div class="flex justify-between text-xs" style="color:var(--tg-hint);"><span>Слабая</span><span>Сильная</span></div>
+            </div>
+            <div>
+                <label class="text-xs font-medium mb-1 block" style="color:var(--tg-text);">Комментарий (необязательно)</label>
+                <textarea id="trigger-note" rows="2" placeholder="Что вызвало позыв?" style="width:100%;background:var(--tg-secondary-bg);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px 12px;color:var(--tg-text);font-family:inherit;font-size:13px;resize:none;outline:none;"></textarea>
+            </div>
+            <div class="flex gap-2">
+                <button id="trigger-cancel" class="flex-1 py-2.5 rounded-xl text-sm font-medium" style="background:var(--tg-secondary-bg); color:var(--tg-hint); border:1px solid rgba(255,255,255,0.06);">Отмена</button>
+                <button id="trigger-confirm" class="flex-1 py-2.5 rounded-xl text-sm font-bold" style="background:rgba(239,68,68,0.2);color:#f87171;">Записать триггер</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ═══ BOTTOM NAV ═══ -->
 <nav class="bottom-nav" id="bottom-nav">
     <button class="nav-item active" data-tab="tracker">
@@ -518,8 +596,9 @@ const state = {
     habits: [], completedToday: new Set(), todayStr: '',
     streak: 0, bestStreak: 0,
     chatHistory: [], isChatLoading: false, currentTab: 'tracker',
-    gender: 'male',
-    selectedGender: null,
+    gender: 'male', selectedGender: null,
+    datepickerResolve: null,
+    countdownIntervals: [],
 };
 
 /* ═══ TELEGRAM INIT ═══ */
@@ -546,9 +625,7 @@ function initTelegram() {
 }
 
 function getTodayStr() { return new Date().toISOString().slice(0, 10); }
-function formatDate() {
-    return new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
-}
+function formatDate() { return new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }); }
 
 /* ═══ COMPLIANCE + GENDER ═══ */
 function isConsentGiven() { return localStorage.getItem(COMPLIANCE_KEY) === 'true'; }
@@ -600,10 +677,6 @@ async function loadHabits() {
     catch (e) { console.warn('Failed to load habits:', e); state.habits = []; }
 }
 
-async function logHabit(title, category, completed = true) {
-    return apiPost('/api/habits/log', { telegram_id: state.telegramId, title, category, is_completed: completed });
-}
-
 async function sendChatMessage(message) {
     const data = await apiPost('/api/chat', { telegram_id: state.telegramId, message, gender: state.gender });
     return data.reply;
@@ -613,23 +686,104 @@ async function batchCreateHabits(habits) {
     return apiPost('/api/habits/batch-create', { telegram_id: state.telegramId, habits });
 }
 
+async function setTargetDate(name, date, type = 'pre_destruction') {
+    return apiPost('/api/habits/set-target-date', { telegram_id: state.telegramId, name, target_date: date, type });
+}
+
+async function logTrigger(habitId, intensity = 1, note = '') {
+    return apiPost('/api/habits/log-trigger', { telegram_id: state.telegramId, habit_id: habitId, intensity, note });
+}
+
+/* ═══ DATE PICKER ═══ */
+function showDatePicker(title) {
+    return new Promise((resolve) => {
+        const overlay = document.getElementById('datepicker-overlay');
+        const input = document.getElementById('datepicker-input');
+        const titleEl = document.getElementById('datepicker-title');
+        const subtitleEl = document.getElementById('datepicker-subtitle');
+        titleEl.textContent = `Назначить День Х: ${title}`;
+        subtitleEl.textContent = 'Выбери дату, когда начинаешь трансформацию';
+        input.min = new Date().toISOString().slice(0, 10);
+        input.value = '';
+        overlay.classList.add('open');
+        state.datepickerResolve = resolve;
+    });
+}
+function hideDatePicker() {
+    document.getElementById('datepicker-overlay').classList.remove('open');
+    state.datepickerResolve = null;
+}
+document.getElementById('datepicker-cancel').addEventListener('click', () => {
+    if (state.datepickerResolve) state.datepickerResolve(null);
+    hideDatePicker();
+});
+document.getElementById('datepicker-confirm').addEventListener('click', () => {
+    const input = document.getElementById('datepicker-input');
+    if (input.value && state.datepickerResolve) state.datepickerResolve(input.value);
+    hideDatePicker();
+});
+
+/* ═══ TRIGGER LOGGER MODAL ═══ */
+function showTriggerLogger(habit) {
+    const overlay = document.getElementById('trigger-overlay');
+    document.getElementById('trigger-habit-name').textContent = habit.name;
+    document.getElementById('trigger-intensity').value = 5;
+    document.getElementById('trigger-intensity-value').textContent = '5';
+    document.getElementById('trigger-note').value = '';
+    overlay.classList.add('open');
+    overlay.dataset.habitId = habit.id;
+}
+
+document.getElementById('trigger-intensity').addEventListener('input', (e) => {
+    document.getElementById('trigger-intensity-value').textContent = e.target.value;
+});
+
+document.getElementById('trigger-cancel').addEventListener('click', () => {
+    document.getElementById('trigger-overlay').classList.remove('open');
+});
+
+document.getElementById('trigger-confirm').addEventListener('click', async () => {
+    const overlay = document.getElementById('trigger-overlay');
+    const habitId = overlay.dataset.habitId;
+    const intensity = parseInt(document.getElementById('trigger-intensity').value);
+    const note = document.getElementById('trigger-note').value.trim();
+    overlay.classList.remove('open');
+    try {
+        await logTrigger(habitId, intensity, note);
+        showToast('Триггер зафиксирован');
+        await loadHabits();
+        renderTracker();
+    } catch (e) {
+        showToast('Ошибка фиксации триггера');
+        console.error(e);
+    }
+});
+
 /* ═══ TRACKER ═══ */
 function renderTracker() {
     state.todayStr = getTodayStr();
     document.getElementById('tracker-date').textContent = formatDate();
 
-    const todayHabits = state.habits.filter(h => { const d = h.updated_at ? h.updated_at.slice(0, 10) : ''; return d === state.todayStr && h.is_completed; });
-    state.completedToday = new Set(todayHabits.map(h => h.title));
+    if (state.countdownIntervals.length) { state.countdownIntervals.forEach(c => clearInterval(c)); state.countdownIntervals = []; }
 
-    const allTitles = [...new Set(state.habits.map(h => h.title))];
-    const total = allTitles.length || 0;
+    const activeHabits = state.habits.filter(h => h.status !== 'failed');
+    const completedToday = activeHabits.filter(h => {
+        const logs = h.logs || [];
+        return logs.some(l => l.timestamp && l.timestamp.slice(0, 10) === state.todayStr);
+    });
+    state.completedToday = new Set(completedToday.map(h => h.id));
+
+    const types = [...new Set(activeHabits.map(h => h.type))];
+    const hasCheckable = activeHabits.some(h => h.type === 'stabilization' || h.type === 'completed');
+    const totalCheckable = activeHabits.filter(h => h.type === 'stabilization' || h.type === 'completed').length;
     const done = state.completedToday.size;
-    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    const pct = totalCheckable > 0 ? Math.round((done / totalCheckable) * 100) : 0;
+    const totalHabits = activeHabits.length;
 
     const offset = CIRCUMFERENCE * (1 - pct / 100);
     document.getElementById('progress-circle').style.strokeDashoffset = offset;
     document.getElementById('progress-percent').textContent = pct + '%';
-    document.getElementById('progress-count').textContent = total > 0 ? `${done} / ${total}` : '—';
+    document.getElementById('progress-count').textContent = totalCheckable > 0 ? `${done} / ${totalCheckable}` : `${totalHabits} шт`;
 
     computeStreak();
     const streakEl = document.getElementById('tracker-streak');
@@ -645,60 +799,177 @@ function renderHabitsList() {
     const loadingEl = document.getElementById('habits-loading');
     const emptyEl = document.getElementById('habits-empty');
     const labelEl = document.getElementById('habits-total-label');
-
     loadingEl.classList.add('hidden');
 
-    const allTitles = [...new Set(state.habits.map(h => h.title))];
-    if (allTitles.length === 0) {
+    const active = state.habits.filter(h => h.status !== 'failed');
+    if (active.length === 0) {
         emptyEl.classList.remove('hidden');
         labelEl.textContent = '0 привычек';
-        container.querySelectorAll('.habit-card').forEach(el => el.remove());
+        container.querySelectorAll('.habit-card, .habit-card-dynamic').forEach(el => el.remove());
         return;
     }
     emptyEl.classList.add('hidden');
-    labelEl.textContent = `${state.completedToday.size} / ${allTitles.length} сегодня`;
+    labelEl.textContent = `${active.length} привычек`;
 
-    let html = '';
-    for (const title of allTitles) {
-        const logs = state.habits.filter(h => h.title === title);
-        const last = logs[0];
-        const cat = last?.category || 'custom';
-        const done = state.completedToday.has(title);
+    container.querySelectorAll('.habit-card, .habit-card-dynamic').forEach(el => el.remove());
+    let idx = container.children.length;
+
+    for (const h of active) {
+        const type = h.type || 'pre_destruction';
+        const cat = h.category || 'custom';
         const color = cat === 'fitness' ? '#f97316' : cat === 'education' ? '#3b82f6' : cat === 'mindfulness' ? '#a855f7' : cat === 'health' ? '#06b6d4' : '#8b5cf6';
         const icon = cat === 'fitness' ? '💪' : cat === 'education' ? '📚' : cat === 'mindfulness' ? '🧘' : cat === 'health' ? '💧' : '⭐';
-        html += `
-            <div class="habit-card${done ? ' completed' : ''}" data-title="${title}" data-category="${cat}">
-                <div class="habit-icon" style="background:${color}22;color:${color};">${icon}</div>
-                <div class="flex-1 min-w-0">
-                    <p class="habit-title text-sm font-medium">${title}</p>
-                    <span class="category-tag" style="background:${color}15;color:${color};">${cat}</span>
-                </div>
-                <div class="habit-check"><div class="habit-check-inner"></div></div>
-            </div>
-        `;
-    }
-    // Append after loading/empty
-    container.querySelectorAll('.habit-card').forEach(el => el.remove());
-    container.insertAdjacentHTML('beforeend', html);
+        const meta = h.meta_kod || {};
+        const targetDate = h.target_date || null;
+        const typeLabels = { pre_destruction: 'Подготовка', destruction: 'Демонтаж', stabilization: 'Стабилизация', completed: 'Завершена' };
+        const phaseLabel = typeLabels[type] || type;
 
-    container.querySelectorAll('.habit-card').forEach(card => {
-        card.addEventListener('click', async () => {
-            if (card.classList.contains('disabled')) return;
-            const title = card.dataset.title;
-            const category = card.dataset.category;
-            const wasDone = state.completedToday.has(title);
-            const nowDone = !wasDone;
-            card.classList.toggle('completed', nowDone);
-            card.classList.add('disabled');
-            if (nowDone) state.completedToday.add(title); else state.completedToday.delete(title);
-            try { await logHabit(title, category, nowDone); await loadHabits(); }
-            catch (e) {
-                card.classList.toggle('completed', wasDone);
-                if (wasDone) state.completedToday.add(title); else state.completedToday.delete(title);
-                console.error('Habit log failed:', e);
+        let cardHtml = '';
+
+        if (type === 'pre_destruction' && targetDate) {
+            // Countdown card
+            const targetTime = new Date(targetDate + (targetDate.includes('T') ? '' : 'T23:59:59')).getTime();
+            cardHtml = `
+                <div class="habit-card-dynamic glass p-4 space-y-2" data-id="${h.id}" style="border-left:3px solid ${color};">
+                    <div class="flex items-center gap-3">
+                        <div class="habit-icon" style="background:${color}22;color:${color};">${icon}</div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold">${h.name}</p>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <span class="phase-badge preparation">${phaseLabel}</span>
+                                <span class="category-tag" style="background:${color}15;color:${color};">${cat}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center py-2">
+                        <p class="text-xs" style="color:var(--tg-hint);">Обратный отсчёт до Дня Х</p>
+                        <p class="text-2xl font-bold countdown-timer" id="cd-${h.id}">--д --:--:--</p>
+                        <p class="text-xs" style="color:var(--tg-hint);">${targetDate.slice(0, 10)}</p>
+                    </div>
+                    <button class="change-date-btn w-full py-2 rounded-xl text-xs font-medium" style="background:var(--tg-secondary-bg);color:var(--tg-button);border:1px solid rgba(255,255,255,0.06);">Изменить дату</button>
+                </div>
+            `;
+            // Start countdown
+            const tick = () => {
+                const display = document.getElementById(`cd-${h.id}`);
+                if (!display) return;
+                const diff = targetTime - Date.now();
+                if (diff <= 0) { display.textContent = '00д 00:00:00'; return; }
+                const d = Math.floor(diff / 86400000);
+                const hr = Math.floor((diff % 86400000) / 3600000);
+                const mi = Math.floor((diff % 3600000) / 60000);
+                const se = Math.floor((diff % 60000) / 1000);
+                display.textContent = `${String(d).padStart(2,'0')}д ${String(hr).padStart(2,'0')}:${String(mi).padStart(2,'0')}:${String(se).padStart(2,'0')}`;
+            };
+            tick();
+            state.countdownIntervals.push(setInterval(tick, 1000));
+        } else if (type === 'pre_destruction' && !targetDate) {
+            // Waiting for Day X
+            cardHtml = `
+                <div class="habit-card-dynamic glass p-4 space-y-2" data-id="${h.id}" style="border-left:3px solid ${color};">
+                    <div class="flex items-center gap-3">
+                        <div class="habit-icon" style="background:${color}22;color:${color};">${icon}</div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold">${h.name}</p>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <span class="phase-badge preparation">${phaseLabel}</span>
+                                <span class="category-tag" style="background:${color}15;color:${color};">${cat}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center py-3">
+                        <p class="text-sm" style="color:var(--tg-hint);">⏳ Ожидание назначения Дня Х</p>
+                        <p class="text-xs mt-1">Обсудите дату в чате с AI-ментором</p>
+                    </div>
+                </div>
+            `;
+        } else if (type === 'destruction') {
+            // Trigger logger card
+            const logs = h.logs || [];
+            const todayLogs = logs.filter(l => l.timestamp && l.timestamp.slice(0, 10) === state.todayStr);
+            const triggerCount = todayLogs.length;
+            cardHtml = `
+                <div class="habit-card-dynamic glass p-4 space-y-2" data-id="${h.id}" style="border-left:3px solid ${color};">
+                    <div class="flex items-center gap-3">
+                        <div class="habit-icon" style="background:${color}22;color:${color};">${icon}</div>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold">${h.name}</p>
+                            <div class="flex items-center gap-1.5 mt-0.5">
+                                <span class="phase-badge dismantling">${phaseLabel}</span>
+                                <span class="category-tag" style="background:${color}15;color:${color};">${cat}</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-lg font-bold">${triggerCount}</p>
+                            <p class="text-xs" style="color:var(--tg-hint);">триггеров</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button class="trigger-btn flex-1 py-2.5 rounded-xl text-sm font-semibold" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.2);">🔥 Зафиксировать триггер</button>
+                        ${meta.category ? `<span class="text-xs self-center" style="color:var(--tg-hint);">${meta.operator || ''}</span>` : ''}
+                    </div>
+                    ${meta.determination ? `<p class="text-xs" style="color:var(--tg-hint);">K-O-D: ${meta.category} → ${meta.operator} → ${meta.determination}</p>` : ''}
+                </div>
+            `;
+        } else if (type === 'stabilization' || type === 'completed') {
+            const isCompleted = type === 'completed';
+            cardHtml = `
+                <div class="habit-card-dynamic glass p-4 flex items-center gap-3 ${isCompleted ? 'completed' : ''}" data-id="${h.id}" style="border-left:3px solid ${color};">
+                    <div class="habit-icon" style="background:${color}22;color:${color};">${icon}</div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold">${h.name}</p>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                            <span class="phase-badge ${type === 'stabilization' ? 'stabilization' : 'completed'}">${phaseLabel}</span>
+                            <span class="category-tag" style="background:${color}15;color:${color};">${cat}</span>
+                        </div>
+                    </div>
+                    <div class="habit-check" style="margin-left:auto;"><div class="habit-check-inner"></div></div>
+                </div>
+            `;
+        }
+
+        container.insertAdjacentHTML('beforeend', cardHtml);
+    }
+
+    // Event delegation
+    container.querySelectorAll('.trigger-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const card = e.target.closest('.habit-card-dynamic');
+            const habit = state.habits.find(h => h.id === card.dataset.id);
+            if (habit) showTriggerLogger(habit);
+        });
+    });
+    container.querySelectorAll('.change-date-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const card = e.target.closest('.habit-card-dynamic');
+            const habit = state.habits.find(h => h.id === card.dataset.id);
+            if (!habit) return;
+            const date = await showDatePicker(habit.name);
+            if (date) {
+                try {
+                    await setTargetDate(habit.name, date, 'pre_destruction');
+                    showToast(`День Х изменён на ${date}`);
+                    await loadHabits();
+                    renderTracker();
+                } catch (e) { showToast('Ошибка сохранения даты'); console.error(e); }
             }
+        });
+    });
+    container.querySelectorAll('.habit-card-dynamic .habit-check').forEach(el => {
+        el.addEventListener('click', async (e) => {
+            const card = e.target.closest('.habit-card-dynamic');
+            if (!card || card.classList.contains('disabled')) return;
+            const habit = state.habits.find(h => h.id === card.dataset.id);
+            if (!habit || habit.type !== 'stabilization') return;
+            card.classList.add('disabled');
+            try {
+                const status = habit.type === 'completed' ? 'stabilization' : 'completed';
+                await apiPost('/api/habits/set-target-date', { telegram_id: state.telegramId, name: habit.name, target_date: habit.target_date || getTodayStr(), type: status });
+                showToast(status === 'completed' ? 'Привычка завершена!' : 'Привычка активна');
+                await loadHabits();
+                renderTracker();
+            } catch (e) { showToast('Ошибка'); console.error(e); }
             card.classList.remove('disabled');
-            renderTracker();
         });
     });
 }
@@ -707,7 +978,12 @@ function renderHabitsList() {
 function computeStreak() {
     if (state.habits.length === 0) { state.streak = 0; return; }
     const completedDates = new Set();
-    for (const h of state.habits) { if (h.is_completed && h.updated_at) completedDates.add(h.updated_at.slice(0, 10)); }
+    for (const h of state.habits) {
+        const logs = h.logs || [];
+        for (const l of logs) {
+            if (l.timestamp) completedDates.add(l.timestamp.slice(0, 10));
+        }
+    }
     let streak = 0; const d = new Date();
     for (let i = 0; i < 365; i++) {
         const dateStr = d.toISOString().slice(0, 10);
@@ -772,73 +1048,39 @@ async function handleChatSend() {
     renderTracker();
     renderProgress();
 
-    // Check for suggested habits in AI reply
-    parseSuggestedHabits(reply);
+    await parseAiAction(reply);
 }
 
-function parseSuggestedHabits(reply) {
-    const container = document.getElementById('suggested-habits-container');
-    const tagRegex = /\[ADD_HABIT:\s*(.+?)\]/g;
-    const suggestions = [];
-    let match;
+async function parseAiAction(reply) {
+    // Extract JSON block
+    const jsonMatch = reply.match(/```json\s*([\s\S]*?)```|({[\s\S]*?"message"[\s\S]*?"action"[\s\S]*?})/);
+    if (!jsonMatch) return;
 
-    while ((match = tagRegex.exec(reply)) !== null) {
-        const title = match[1].trim();
-        if (title.length > 2 && title.length <= 60 && !suggestions.some(s => s.title === title)) {
-            const existing = state.habits.some(h => h.title === title);
-            suggestions.push({ title, added: existing });
+    let parsed;
+    try { parsed = JSON.parse(jsonMatch[1] || jsonMatch[2]); }
+    catch (e) { return; }
+
+    if (!parsed.action || parsed.action.type === 'NONE') return;
+
+    if (parsed.action.type === 'TRIGGER_UI_WIDGET' && parsed.action.payload?.widget_type === 'DATE_PICKER') {
+        const meta = parsed.action.payload.meta || {};
+        const habitName = meta.habit_name || 'Цель';
+        const date = await showDatePicker(habitName);
+        if (date) {
+            try {
+                await setTargetDate(habitName, date, meta.habit_type || 'pre_destruction');
+                showToast(`День Х назначен на ${date}`);
+                await loadHabits();
+                renderTracker();
+                renderProgress();
+                switchTab('tracker');
+            } catch (e) {
+                showToast('Ошибка при сохранении даты');
+                console.error(e);
+            }
         }
     }
-
-    if (suggestions.length === 0) { container.classList.add('hidden'); container.innerHTML = ''; return; }
-
-    let html = '<p class="text-xs font-semibold" style="color:var(--tg-hint);">Предложенные привычки:</p>';
-    for (const s of suggestions) {
-        html += `
-            <div class="suggested-habit-card" data-title="${s.title.replace(/"/g, '&quot;')}">
-                <span class="text-sm flex-1">${s.title}</span>
-                <button class="add-btn ${s.added ? 'added' : ''}" data-title="${s.title.replace(/"/g, '&quot;')}">
-                    ${s.added ? '✓' : '+'}
-                </button>
-            </div>
-        `;
-    }
-    container.innerHTML = html;
-    container.classList.remove('hidden');
 }
-
-// Event delegation for suggested habits (works even after DOM updates)
-document.getElementById('suggested-habits-container').addEventListener('click', async (e) => {
-    const btn = e.target.closest('.add-btn');
-    if (!btn || btn.classList.contains('added')) return;
-
-    const title = btn.dataset.title;
-    if (!title) return;
-
-    btn.textContent = '...';
-    btn.style.pointerEvents = 'none';
-
-    try {
-        await batchCreateHabits([{ title, category: 'custom' }]);
-        btn.textContent = '✓';
-        btn.classList.add('added');
-        btn.style.pointerEvents = '';
-
-        // Refresh data
-        await loadHabits();
-        renderTracker();
-        renderProgress();
-
-        // Show toast and switch to tracker
-        showToast('Привычка добавлена!');
-        setTimeout(() => switchTab('tracker'), 800);
-    } catch (e) {
-        console.error('Failed to add habit:', e);
-        btn.textContent = '+';
-        btn.style.pointerEvents = '';
-        showToast('Ошибка. Попробуйте ещё раз.');
-    }
-});
 
 function showToast(msg) {
     let toast = document.getElementById('toast');
@@ -890,7 +1132,7 @@ function renderProgress() {
     }
     genderLabelEl.textContent = 'Обращение: ' + (state.gender === 'female' ? 'женский род' : 'мужской род');
 
-    const totalCompleted = state.habits.filter(h => h.is_completed).length;
+    const totalCompleted = state.habits.filter(h => h.status === 'completed').length;
     document.getElementById('stat-total').textContent = totalCompleted;
     document.getElementById('stat-streak').textContent = state.streak;
     document.getElementById('stat-best').textContent = Math.max(state.bestStreak, state.streak);
@@ -903,7 +1145,12 @@ function renderActivityGrid() {
     const grid = document.getElementById('activity-grid');
     const today = new Date();
     const dayMap = new Map();
-    for (const h of state.habits) { if (h.is_completed && h.updated_at) { dayMap.set(h.updated_at.slice(0, 10), (dayMap.get(h.updated_at.slice(0, 10)) || 0) + 1); } }
+    for (const h of state.habits) {
+        const logs = h.logs || [];
+        for (const l of logs) {
+            if (l.timestamp) dayMap.set(l.timestamp.slice(0, 10), (dayMap.get(l.timestamp.slice(0, 10)) || 0) + 1);
+        }
+    }
     let cells = '';
     const maxCount = Math.max(1, ...dayMap.values());
     const totalDays = 28;
@@ -914,7 +1161,7 @@ function renderActivityGrid() {
         const isToday = i === 0;
         let level = 0;
         if (count > 0) { const r = count / maxCount; if (r <= 0.25) level = 1; else if (r <= 0.5) level = 2; else if (r <= 0.75) level = 3; else level = 4; }
-        cells += `<div class="activity-cell level-${level}${isToday ? ' today' : ''}" title="${key}: ${count} привычек"></div>`;
+        cells += `<div class="activity-cell level-${level}${isToday ? ' today' : ''}" title="${key}: ${count} триггеров"></div>`;
     }
     grid.innerHTML = cells;
 }
@@ -922,14 +1169,19 @@ function renderActivityGrid() {
 function renderHabitsBreakdown() {
     const container = document.getElementById('habits-breakdown');
     const counts = new Map();
-    for (const h of state.habits) { if (h.is_completed) counts.set(h.title, (counts.get(h.title) || 0) + 1); }
+    for (const h of state.habits) {
+        const logs = h.logs || [];
+        counts.set(h.name, (counts.get(h.name) || 0) + logs.length);
+    }
     if (counts.size === 0) { container.innerHTML = '<p class="text-xs" style="color:var(--tg-hint);">Пока нет данных. Начни общаться с AI-ментором!</p>'; return; }
     const entries = Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
     const maxVal = entries[0][1] || 1;
     let html = '<div class="space-y-2">';
-    for (const [title, cnt] of entries) {
+    for (const [name, cnt] of entries) {
         const pct = Math.round((cnt / maxVal) * 100);
-        html += `<div><div class="flex justify-between text-xs mb-1"><span>${title}</span><span style="color:var(--tg-hint);">${cnt} ×</span></div><div class="w-full h-1.5 rounded-full" style="background:rgba(255,255,255,0.06);"><div class="h-full rounded-full" style="width:${pct}%;background:var(--tg-button);transition:width 0.6s;"></div></div></div>`;
+        const h = state.habits.find(h => h.name === name);
+        const typeLabel = h && h.type === 'destruction' ? '🔥' : '✅';
+        html += `<div><div class="flex justify-between text-xs mb-1"><span>${typeLabel} ${name}</span><span style="color:var(--tg-hint);">${cnt} ×</span></div><div class="w-full h-1.5 rounded-full" style="background:rgba(255,255,255,0.06);"><div class="h-full rounded-full" style="width:${pct}%;background:var(--tg-button);transition:width 0.6s;"></div></div></div>`;
     }
     html += '</div>';
     container.innerHTML = html;
@@ -985,7 +1237,6 @@ async function startApp() {
         item.addEventListener('click', () => switchTab(item.dataset.tab));
     });
     document.getElementById('chat-send').addEventListener('click', handleChatSend);
-
     document.getElementById('goto-chat-empty').addEventListener('click', () => switchTab('chat'));
 
     document.addEventListener('visibilitychange', () => {
@@ -997,7 +1248,6 @@ async function startApp() {
 document.addEventListener('DOMContentLoaded', () => {
     initTelegram();
     document.getElementById('consent-btn').addEventListener('click', acceptConsent);
-
     document.querySelectorAll('.gender-btn').forEach(btn => {
         btn.addEventListener('click', () => selectGender(btn.dataset.gender));
     });
