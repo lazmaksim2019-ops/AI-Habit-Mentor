@@ -8,5 +8,4 @@ httpx
 python-dotenv
 pgvector
 dnspython
-jinja2
 aiofiles

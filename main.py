@@ -10,7 +10,6 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 
 BASE_DIR = pathlib.Path(__file__).parent
 
@@ -60,25 +59,18 @@ static_dir = BASE_DIR / "src" / "static"
 templates_dir.mkdir(parents=True, exist_ok=True)
 static_dir.mkdir(parents=True, exist_ok=True)
 
-templates = Jinja2Templates(directory=str(templates_dir))
 app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+INDEX_HTML_PATH = templates_dir / "index.html"
+INDEX_HTML_CACHE: str | None = None
 
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    try:
-        return templates.TemplateResponse(
-            "index.html",
-            {"request": request, "title": "Neuro-Adaptive AI Habit Mentor"},
-        )
-    except Exception as e:
-        logger.exception("Template render failed, falling back to direct file read")
-        html_path = templates_dir / "index.html"
-        if html_path.exists():
-            content = html_path.read_text(encoding="utf-8")
-            content = content.replace("{{ title }}", "Neuro-Adaptive AI Habit Mentor")
-            return HTMLResponse(content=content)
-        raise
+async def index():
+    global INDEX_HTML_CACHE
+    if INDEX_HTML_CACHE is None:
+        INDEX_HTML_CACHE = INDEX_HTML_PATH.read_text(encoding="utf-8")
+    return HTMLResponse(content=INDEX_HTML_CACHE)
 
 
 @app.exception_handler(Exception)

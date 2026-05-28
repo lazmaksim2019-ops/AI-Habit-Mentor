@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 
 FALLBACK_RESPONSE = "Извините, сервис временно недоступен. Пожалуйста, попробуйте позже."
 
+# httpx >= 0.28 uses `proxy` (singular); older versions use `proxies` (plural)
+_HTTX_HAS_NEW_PROXY_API = tuple(int(x) for x in httpx.__version__.split(".")[:2]) >= (0, 28)
+
 
 class GeminiProvider(BaseAIProvider):
 
@@ -21,17 +24,18 @@ class GeminiProvider(BaseAIProvider):
         self._client_kwargs = {"timeout": 60.0}
 
         if proxy_url:
-            # Mask credentials for logging
             safe_url = proxy_url
             if "@" in proxy_url:
                 safe_url = "http://***:***@" + proxy_url.split("@", 1)[1]
-            logger.info("Using proxy: %s", safe_url)
+            logger.info("Using proxy: %s (httpx %s, new_api=%s)", safe_url, httpx.__version__, _HTTX_HAS_NEW_PROXY_API)
 
-            self._client_kwargs["proxies"] = {
-                "http://": proxy_url,
-                "https://": proxy_url,
-            }
-            self._client_kwargs["verify"] = True
+            if _HTTX_HAS_NEW_PROXY_API:
+                self._client_kwargs["proxy"] = proxy_url
+            else:
+                self._client_kwargs["proxies"] = {
+                    "http://": proxy_url,
+                    "https://": proxy_url,
+                }
         else:
             logger.info("No proxy configured, connecting directly to Gemini API")
 
@@ -86,7 +90,7 @@ class GeminiProvider(BaseAIProvider):
         }
         try:
             async with httpx.AsyncClient(**self._client_kwargs) as client:
-                logger.debug("Sending generation request to model=%s proxy=%s", self.model, bool(self._client_kwargs.get("proxies")))
+                logger.debug("Sending generation request to model=%s proxy=%s", self.model, bool(self._client_kwargs.get("proxy") or self._client_kwargs.get("proxies")))
                 response = await client.post(url, json=payload)
                 response.raise_for_status()
                 data = response.json()
