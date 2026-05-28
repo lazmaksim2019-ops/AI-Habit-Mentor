@@ -848,7 +848,7 @@ function renderHabitsList() {
         const icon = cat === 'fitness' ? '💪' : cat === 'education' ? '📚' : cat === 'mindfulness' ? '🧘' : cat === 'health' ? '💧' : '⭐';
         const meta = h.meta_kod || {};
         const targetDate = h.target_date || null;
-        const typeLabels = { pre_destruction: 'Подготовка', destruction: 'Демонтаж', stabilization: 'Стабилизация', completed: 'Завершена' };
+        const typeLabels = { pre_destruction: 'Подготовка', destruction: 'Демонтаж', stabilization: 'Стабилизация', formation: 'Формирование', completed: 'Завершена' };
         const phaseLabel = typeLabels[type] || type;
 
         let cardHtml = '';
@@ -953,6 +953,24 @@ function renderHabitsList() {
                     <div class="habit-check" style="margin-left:auto;"><div class="habit-check-inner"></div></div>
                 </div>
             `;
+        } else if (type === 'formation') {
+            // Formation card — building a new habit
+            const logs = h.logs || [];
+            const todayDone = logs.some(l => l.timestamp && l.timestamp.slice(0, 10) === state.todayStr);
+            cardHtml = `
+                <div class="habit-card-dynamic glass p-4 flex items-center gap-3 ${todayDone ? 'completed' : ''}" data-id="${h.id}" style="border-left:3px solid ${color};">
+                    <div class="habit-icon" style="background:${color}22;color:${color};">${icon}</div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold">${h.name}</p>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                            <span class="phase-badge stabilization">${phaseLabel}</span>
+                            <span class="category-tag" style="background:${color}15;color:${color};">${cat}</span>
+                        </div>
+                        ${meta.operator ? `<p class="text-xs mt-1" style="color:var(--tg-hint);">${meta.operator}</p>` : ''}
+                    </div>
+                    <div class="habit-check" style="margin-left:auto;"><div class="habit-check-inner"></div></div>
+                </div>
+            `;
         }
 
         container.insertAdjacentHTML('beforeend', cardHtml);
@@ -987,7 +1005,7 @@ function renderHabitsList() {
             const card = e.target.closest('.habit-card-dynamic');
             if (!card || card.classList.contains('disabled')) return;
             const habit = state.habits.find(h => h.id === card.dataset.id);
-            if (!habit || habit.type !== 'stabilization') return;
+            if (!habit || (habit.type !== 'stabilization' && habit.type !== 'formation')) return;
             card.classList.add('disabled');
             try {
                 const status = habit.type === 'completed' ? 'stabilization' : 'completed';

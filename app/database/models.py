@@ -24,7 +24,7 @@ class UserLink(Base):
     memories: Mapped[list["UserVectorMemory"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
-HABIT_TYPES = ("pre_destruction", "destruction", "stabilization")
+HABIT_TYPES = ("pre_destruction", "destruction", "stabilization", "formation")
 HABIT_STATUSES = ("active", "completed", "failed")
 
 
