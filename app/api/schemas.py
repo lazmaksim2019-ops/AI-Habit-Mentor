@@ -18,7 +18,8 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    reply: str = Field(..., description="AI assistant raw reply (may contain mixed JSON/text)")
+    reply: str = Field(..., description="AI assistant clean message text (extracted from JSON, without markdown)")
+    action: dict = Field(default={"type": "NONE", "payload": {}}, description="Structured action with widget_type if applicable")
 
 
 class MetaKOD(BaseModel):

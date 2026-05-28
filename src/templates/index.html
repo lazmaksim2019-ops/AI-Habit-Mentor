@@ -442,7 +442,7 @@
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                 <p class="text-sm font-medium mb-1">Пока нет привычек</p>
                 <p class="text-xs">AI-ментор подберёт их специально для вас</p>
-                <button id="goto-chat-empty" class="mt-4 py-2 px-5 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-sm font-semibold transition-all active:scale-95 shadow-lg shadow-purple-500/20">
+                <button id="goto-chat-empty" class="mt-4 py-2.5 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold text-sm tracking-wide transition-all active:scale-95 shadow-lg shadow-purple-500/30">
                     Пройти диагностику
                 </button>
             </div>
@@ -695,7 +695,8 @@ async function sendChatMessage(message) {
         phase,
         history: state.chatHistory.slice(-10).map(m => ({ role: m.role, text: m.text })),
     });
-    return data.reply;
+    // Backend now returns { reply: "clean text", action: { type, payload } }
+    return data;
 }
 
 function _detectClientPhase() {
@@ -1150,16 +1151,19 @@ async function handleChatSend() {
     state.isChatLoading = true;
     renderChat();
 
-    let reply;
-    try { reply = await sendChatMessage(text); }
-    catch (e) { reply = '{"message": "⚠️ Произошла ошибка. Попробуйте ещё раз.", "action": {"type": "NONE"}}'; console.error('Chat error:', e); }
+    let response;
+    try { response = await sendChatMessage(text); }
+    catch (e) { response = { reply: '⚠️ Произошла ошибка. Попробуйте ещё раз.', action: { type: 'NONE' } }; console.error('Chat error:', e); }
 
-    const parsed = parseAiReply(reply);
+    const parsed = parseAiReply(response.reply);
+    // Backend provides structured action — use it for widget generation
+    const backendAction = response.action;
+    const widget = backendAction?.type === 'TRIGGER_UI_WIDGET' ? _widgetFromAction(backendAction) : parsed.widget;
     // Strip strategy widget if already chosen
-    if (state.strategyChosen && parsed.widget?.includes('inline-strategy-wrap')) {
+    if (state.strategyChosen && widget?.includes('inline-strategy-wrap')) {
         parsed.widget = null;
     }
-    state.chatHistory.push({ role: 'ai', text: parsed.message, widget: parsed.widget || null });
+    state.chatHistory.push({ role: 'ai', text: parsed.message, widget: widget || null });
     state.isChatLoading = false;
     renderChat();
     saveChatHistory();
@@ -1167,8 +1171,8 @@ async function handleChatSend() {
     renderTracker();
     renderProgress();
 
-    if (parsed.action?.type === 'TRIGGER_UI_WIDGET') {
-        const wType = parsed.action.payload?.widget_type;
+    if (backendAction?.type === 'TRIGGER_UI_WIDGET') {
+        const wType = backendAction.payload?.widget_type;
         if (wType === 'DATE_PICKER' || wType === 'STRATEGY_CHOICE') {
             setTimeout(() => {
                 const container = document.getElementById('chat-messages');
@@ -1176,6 +1180,37 @@ async function handleChatSend() {
             }, 50);
         }
     }
+}
+
+function _widgetFromAction(action) {
+    if (!action || action.type !== 'TRIGGER_UI_WIDGET') return null;
+    const meta = action.payload?.meta || {};
+    const habitName = meta.habit_name || 'Цель';
+
+    if (action.payload?.widget_type === 'DATE_PICKER') {
+        return `
+            <div class="inline-datepicker-wrap glass p-3 my-2" data-habit-name="${habitName.replace(/"/g, '&quot;')}" data-habit-type="${(meta.habit_type || 'pre_destruction').replace(/"/g, '&quot;')}">
+                <p class="text-xs font-semibold mb-2" style="color:var(--tg-text);">📅 Выберите дату Дня Х</p>
+                <input type="date" class="inline-datepicker-input" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:var(--tg-section-bg);color:var(--tg-text);font-size:14px;font-family:inherit;outline:none;" />
+                <button class="inline-datepicker-confirm w-full mt-2 py-2.5 rounded-xl text-sm font-bold" style="background:var(--tg-button);color:var(--tg-button-text);border:none;">Подтвердить</button>
+            </div>
+        `;
+    }
+
+    if (action.payload?.widget_type === 'STRATEGY_CHOICE') {
+        const strategies = meta.strategies || ['Стратегия А', 'Стратегия Б'];
+        let btns = strategies.map((s, i) => `
+            <button class="strategy-btn flex-1 py-3 px-3 rounded-xl text-sm font-semibold transition-all active:scale-95" data-strategy="${i}" style="background:var(--tg-secondary-bg);color:var(--tg-text);border:1px solid rgba(255,255,255,0.08);">${s}</button>
+        `).join('');
+        return `
+            <div class="inline-strategy-wrap glass p-3 my-2" data-habit-name="${habitName.replace(/"/g, '&quot;')}">
+                <p class="text-xs font-semibold mb-3 text-center" style="color:var(--tg-hint);">Выберите стратегию:</p>
+                <div class="flex gap-2">${btns}</div>
+            </div>
+        `;
+    }
+
+    return null;
 }
 
 function parseAiReply(reply) {

@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import uuid
 from datetime import datetime
 
@@ -222,6 +223,19 @@ def _habit_to_response(h: UserHabit) -> HabitResponse:
     )
 
 
+def _clean_json_from_response(raw: str) -> str:
+    """Extract JSON string from model output, handling markdown ```json fences."""
+    s = raw.strip()
+    if s.startswith("```"):
+        lines = s.splitlines()
+        if lines and (lines[0].startswith("```json") or lines[0] == "```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        s = "\n".join(lines).strip()
+    return s
+
+
 @router.post("/api/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
@@ -256,17 +270,29 @@ async def chat(
 
     # Build history from request (frontend sends parsed chat history)
     history = [{"role": "assistant" if m.role == "ai" else "user", "content": m.text} for m in (request.history or [])]
-    ai_reply = await ai_provider.generate_response(system_prompt, history, cleaned_message)
+    raw_ai_reply = await ai_provider.generate_response(system_prompt, history, cleaned_message)
+
+    # Parse JSON from Gemini response
+    clean_json = _clean_json_from_response(raw_ai_reply)
+    user_message = raw_ai_reply
+    action_data: dict = {"type": "NONE", "payload": {}}
+
+    try:
+        parsed = json.loads(clean_json)
+        user_message = parsed.get("message", raw_ai_reply)
+        action_data = parsed.get("action", {"type": "NONE", "payload": {}})
+    except json.JSONDecodeError:
+        logger.error("Gemini returned non-JSON response, forwarding raw: %.200s", raw_ai_reply)
 
     background_tasks.add_task(
         _save_memory_background,
         user_uuid,
         cleaned_message,
-        ai_reply,
+        user_message,
         ai_provider,
     )
 
-    return ChatResponse(reply=ai_reply)
+    return ChatResponse(reply=user_message, action=action_data)
 
 
 @router.get("/api/habits", response_model=HabitsListResponse)
