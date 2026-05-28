@@ -322,13 +322,67 @@
         }
         .empty-state svg { width: 48px; height: 48px; margin: 0 auto 12px; opacity: 0.4; }
 
+        .welcome-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 24px;
+            background: var(--tg-bg);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        .welcome-overlay.fade-out {
+            opacity: 0;
+            transform: scale(1.05);
+            pointer-events: none;
+        }
+        .welcome-overlay.hidden {
+            display: none;
+        }
+
         @media (min-width: 480px) {
             body { max-width: 430px; margin: 0 auto; box-shadow: 0 0 40px rgba(0,0,0,0.5); min-height: 100vh; }
             .bottom-nav { max-width: 430px; left: 50%; transform: translateX(-50%); }
+            .welcome-overlay { max-width: 430px; left: 50%; transform: translateX(-50%); }
+            .welcome-overlay.fade-out { transform: translateX(-50%) scale(1.05); }
         }
     </style>
 </head>
 <body>
+
+<div id="welcome-overlay" class="welcome-overlay">
+    <div class="w-20 h-20 mb-6 rounded-3xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center shadow-2xl shadow-purple-500/30">
+        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+    </div>
+
+    <h1 class="text-2xl font-extrabold text-center mb-2 bg-gradient-to-r from-purple-300 to-blue-300 bg-clip-text text-transparent">
+        Ментор привычек
+    </h1>
+    <p class="text-sm mb-8 text-center" style="color:var(--tg-hint);">
+        Нейро-адаптивный AI-трекер с долгосрочной памятью
+    </p>
+
+    <div class="glass-strong p-5 mb-6 w-full max-w-sm" style="text-align:left;">
+        <p class="text-xs leading-relaxed" style="color:var(--tg-hint);">
+            Нажимая кнопку <strong style="color:var(--tg-text);">«Согласен и Войти»</strong>, вы даёте
+            согласие на обработку персональных данных в соответствии с
+            <strong style="color:var(--tg-text);">Федеральным законом № 152-ФЗ «О персональных данных»</strong>
+            и принимаете условия Политики конфиденциальности.
+        </p>
+    </div>
+
+    <button id="consent-btn"
+            class="w-full max-w-sm py-3.5 px-6 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 font-bold text-base transition-all duration-200 active:scale-95 shadow-lg shadow-purple-500/20">
+        Согласен и Войти
+    </button>
+
+    <p class="text-xs mt-6" style="color:var(--tg-hint);">v1.0.0</p>
+</div>
 
 <div id="app">
 
@@ -507,6 +561,7 @@ const SUGGESTED_HABITS = [
 ];
 
 const CIRCUMFERENCE = 2 * Math.PI * 52; // ~326.73
+const COMPLIANCE_KEY = 'habit_mentor_compliance';
 
 /* ============================================================
    STATE
@@ -986,10 +1041,65 @@ function setupChatInput() {
 }
 
 /* ============================================================
+   COMPLIANCE (ФЗ-152)
+   ============================================================ */
+function isConsentGiven() {
+    return localStorage.getItem(COMPLIANCE_KEY) === 'true';
+}
+
+function acceptConsent() {
+    localStorage.setItem(COMPLIANCE_KEY, 'true');
+    const overlay = document.getElementById('welcome-overlay');
+    overlay.classList.add('fade-out');
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+        document.body.style.overflow = '';
+    }, 500);
+}
+
+function showWelcome() {
+    const overlay = document.getElementById('welcome-overlay');
+    overlay.classList.remove('hidden', 'fade-out');
+    document.body.style.overflow = 'hidden';
+}
+
+function hideWelcome() {
+    const overlay = document.getElementById('welcome-overlay');
+    overlay.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+/* ============================================================
    MAIN
    ============================================================ */
 async function main() {
     initTelegram();
+
+    if (!isConsentGiven()) {
+        showWelcome();
+        // Load data in background while user sees welcome
+        loadChatHistory();
+        setupChatInput();
+        document.getElementById('habits-loading').style.display = 'block';
+        await loadHabits();
+        renderTracker();
+        renderProgress();
+        renderChat();
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => switchTab(item.dataset.tab));
+        });
+        document.getElementById('chat-send').addEventListener('click', handleChatSend);
+        document.getElementById('consent-btn').addEventListener('click', acceptConsent);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) loadHabits().then(() => {
+                renderTracker();
+                renderProgress();
+            });
+        });
+        return;
+    }
+
+    hideWelcome();
     loadChatHistory();
     setupChatInput();
 
@@ -1009,6 +1119,9 @@ async function main() {
 
     // Chat send button
     document.getElementById('chat-send').addEventListener('click', handleChatSend);
+
+    // Consent button
+    document.getElementById('consent-btn').addEventListener('click', acceptConsent);
 
     // Update progress when returning to app
     document.addEventListener('visibilitychange', () => {
