@@ -14,7 +14,8 @@ class ChatResponse(BaseModel):
 
 
 class HabitLogRequest(BaseModel):
-    user_uuid: UUID = Field(..., description="Anonymous user UUID")
+    telegram_id: int | None = Field(default=None, description="Telegram user ID (alternative to user_uuid)")
+    user_uuid: UUID | None = Field(default=None, description="Anonymous user UUID")
     title: str = Field(..., min_length=1, max_length=255, description="Habit title")
     category: str = Field(default="general", max_length=100, description="Habit category")
     is_completed: bool = Field(default=True, description="Completion status")
@@ -26,3 +27,16 @@ class HabitLogResponse(BaseModel):
     category: str
     is_completed: bool
     updated_at: datetime
+
+
+class HabitResponse(BaseModel):
+    id: int
+    title: str
+    category: str
+    is_completed: bool
+    updated_at: datetime
+    created_at: datetime | None = None
+
+
+class HabitsListResponse(BaseModel):
+    habits: list[HabitResponse]

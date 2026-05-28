@@ -1,11 +1,18 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.schemas import ChatRequest, ChatResponse, HabitLogRequest, HabitLogResponse
+from app.api.schemas import (
+    ChatRequest,
+    ChatResponse,
+    HabitLogRequest,
+    HabitLogResponse,
+    HabitResponse,
+    HabitsListResponse,
+)
 from app.core.config import settings
 from app.database.models import UserHabit, UserLink, UserVectorMemory
 from app.database.repository import get_relevant_memory
@@ -133,8 +140,15 @@ async def log_habit(
     request: HabitLogRequest,
     session: AsyncSession = Depends(get_async_session),
 ):
+    if request.telegram_id is not None:
+        user_uuid = await _get_or_create_user(request.telegram_id, session)
+    elif request.user_uuid is not None:
+        user_uuid = request.user_uuid
+    else:
+        user_uuid = uuid.uuid4()
+
     habit = UserHabit(
-        user_uuid=request.user_uuid,
+        user_uuid=user_uuid,
         title=request.title,
         category=request.category,
         is_completed=request.is_completed,
@@ -156,4 +170,32 @@ async def log_habit(
         category=habit.category,
         is_completed=habit.is_completed,
         updated_at=habit.updated_at,
+    )
+
+
+@router.get("/api/habits", response_model=HabitsListResponse)
+async def get_habits(
+    telegram_id: int = Query(..., description="Telegram user ID"),
+    session: AsyncSession = Depends(get_async_session),
+):
+    user_uuid = await _get_or_create_user(telegram_id, session)
+    result = await session.execute(
+        select(UserHabit)
+        .where(UserHabit.user_uuid == user_uuid)
+        .order_by(UserHabit.updated_at.desc())
+        .limit(200)
+    )
+    habits = result.scalars().all()
+    return HabitsListResponse(
+        habits=[
+            HabitResponse(
+                id=h.id,
+                title=h.title,
+                category=h.category,
+                is_completed=h.is_completed,
+                updated_at=h.updated_at,
+                created_at=h.updated_at,
+            )
+            for h in habits
+        ]
     )
