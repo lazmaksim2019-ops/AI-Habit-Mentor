@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 class ChatRequest(BaseModel):
     telegram_id: int = Field(..., description="Telegram user ID")
     message: str = Field(..., min_length=1, max_length=4096, description="User message text")
+    gender: str = Field(default="male", pattern="^(male|female)$", description="User grammatical gender for AI responses")
 
 
 class ChatResponse(BaseModel):
@@ -19,6 +20,17 @@ class HabitLogRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Habit title")
     category: str = Field(default="general", max_length=100, description="Habit category")
     is_completed: bool = Field(default=True, description="Completion status")
+
+
+class HabitCreateRequest(BaseModel):
+    telegram_id: int = Field(..., description="Telegram user ID")
+    title: str = Field(..., min_length=1, max_length=255, description="Habit title")
+    category: str = Field(default="custom", max_length=100, description="Habit category")
+
+
+class HabitCreateBatchRequest(BaseModel):
+    telegram_id: int = Field(..., description="Telegram user ID")
+    habits: list[HabitCreateRequest] = Field(..., min_length=1, max_length=20)
 
 
 class HabitLogResponse(BaseModel):

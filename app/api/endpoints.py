@@ -8,6 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.schemas import (
     ChatRequest,
     ChatResponse,
+    HabitCreateBatchRequest,
+    HabitCreateRequest,
     HabitLogRequest,
     HabitLogResponse,
     HabitResponse,
@@ -82,10 +84,17 @@ async def _save_memory_background(
         logger.error("Failed to save vector memory for user %s: %s", user_uuid, e)
 
 
-def _build_system_prompt(habits_context: str, memory_context: str) -> str:
+def _build_system_prompt(habits_context: str, memory_context: str, gender: str = "male") -> str:
+    gender_instruction = (
+        "Обращайся к пользователю в женском роде (готова, сделала, ты молодец)."
+        if gender == "female"
+        else "Обращайся к пользователю в мужском роде (готов, сделал, ты молодец)."
+    )
     return f"""Ты — Нейро-адаптивный ИИ-ментор привычек. Твоя задача — помогать пользователю
 формировать и поддерживать полезные привычки, анализировать прогресс и давать
 персональные рекомендации.
+
+{gender_instruction}
 
 {habits_context}
 
@@ -93,7 +102,11 @@ def _build_system_prompt(habits_context: str, memory_context: str) -> str:
 {memory_context or "Прошлых диалогов нет."}
 
 Будь поддерживающим, но честным. Отвечай на русском языке кратко и по делу.
-Не запрашивай персональные данные пользователя."""
+Не запрашивай персональные данные пользователя.
+
+Ты также можешь предлагать пользователю новые привычки. Когда ты предлагаешь привычку,
+используй чёткие формулировки — пользователь сможет добавить её в свой трекер одним нажатием.
+Отвечай структурированно: выделяй ключевые мысли жирным шрифтом, используй списки для шагов."""
 
 
 @router.post("/api/chat", response_model=ChatResponse)
@@ -119,7 +132,7 @@ async def chat(
 
     habits_context = await _get_user_habits_context(user_uuid, session)
 
-    system_prompt = _build_system_prompt(habits_context, memory_context)
+    system_prompt = _build_system_prompt(habits_context, memory_context, gender=request.gender)
 
     history: list = []
     ai_reply = await ai_provider.generate_response(system_prompt, history, cleaned_message)
@@ -197,6 +210,42 @@ async def get_habits(
                 created_at=h.updated_at,
             )
             for h in habits
+        ]
+    )
+
+
+@router.post("/api/habits/batch-create")
+async def batch_create_habits(
+    request: HabitCreateBatchRequest,
+    session: AsyncSession = Depends(get_async_session),
+):
+    user_uuid = await _get_or_create_user(request.telegram_id, session)
+    created = []
+    for h in request.habits:
+        habit = UserHabit(
+            user_uuid=user_uuid,
+            title=h.title,
+            category=h.category,
+            is_completed=False,
+        )
+        session.add(habit)
+        created.append(habit)
+    await session.commit()
+    for habit in created:
+        await session.refresh(habit)
+
+    logger.info("Batch created %d habits for user %s", len(created), user_uuid)
+    return HabitsListResponse(
+        habits=[
+            HabitResponse(
+                id=h.id,
+                title=h.title,
+                category=h.category,
+                is_completed=h.is_completed,
+                updated_at=h.updated_at,
+                created_at=h.updated_at,
+            )
+            for h in created
         ]
     )
 
