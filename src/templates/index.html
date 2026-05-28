@@ -597,7 +597,7 @@ const state = {
     habits: [], completedToday: new Set(), todayStr: '',
     streak: 0, bestStreak: 0,
     chatHistory: [], isChatLoading: false, currentTab: 'tracker',
-    gender: 'male', selectedGender: null,
+    gender: 'male', selectedGender: null, strategyChosen: false,
     datepickerResolve: null,
     countdownIntervals: [],
 };
@@ -1027,7 +1027,11 @@ function renderChat() {
         const text = msg.role === 'ai' ? marked.parse(msg.text) : marked.parseInline(msg.text);
         html += `<div class="message ${msg.role}">${text}</div>`;
         if (msg.role === 'ai' && msg.widget) {
-            html += msg.widget;
+            if (msg.widgetConsumed && msg.widget.includes('inline-strategy-wrap')) {
+                html += msg.widget.replace(/<button /g, '<button disabled style="opacity:0.4;cursor:not-allowed;" ').replace('Выберите стратегию:', 'Стратегия выбрана');
+            } else {
+                html += msg.widget;
+            }
         }
     }
     if (state.isChatLoading) {
@@ -1079,10 +1083,19 @@ function renderChat() {
             const strategy = e.target.dataset.strategy;
             const label = e.target.textContent;
 
-            // Create a habit based on chosen strategy
-            const isAbrupt = strategy === '0'; // 0 = abrupt cessation
+            // Disable ALL strategy buttons in ALL widgets
+            container.querySelectorAll('.strategy-btn').forEach(b => b.disabled = true);
+            container.querySelectorAll('.strategy-btn').forEach(b => b.style.opacity = '0.4');
+            // Mark all strategy widgets as consumed
+            state.chatHistory.forEach(m => {
+                if (m.widget && m.widget.includes('inline-strategy-wrap')) {
+                    m.widgetConsumed = true;
+                }
+            });
+            state.strategyChosen = true;
+
+            const isAbrupt = strategy === '0';
             if (isAbrupt) {
-                // Show date picker inline after selection
                 const datepickerHtml = `
                     <div class="inline-datepicker-wrap glass p-3 my-2" data-habit-name="${habitName.replace(/"/g, '&quot;')}" data-habit-type="pre_destruction">
                         <p class="text-xs font-semibold mb-2" style="color:var(--tg-text);">📅 Выберите дату Дня Х</p>
@@ -1090,22 +1103,18 @@ function renderChat() {
                         <button class="inline-datepicker-confirm w-full mt-2 py-2.5 rounded-xl text-sm font-bold" style="background:var(--tg-button);color:var(--tg-button-text);border:none;">Подтвердить</button>
                     </div>
                 `;
-                // Add confirmation message and datepicker to chat
-                state.chatHistory.push({ role: 'ai', text: `✅ **Стратегия:** ${label}. Когда планируете День Х?` });
-                // Push the datepicker as a separate ai message with widget
+                state.chatHistory.push({ role: 'ai', text: `✅ **Стратегия:** ${label}. Когда планируешь День Х?` });
                 state.chatHistory.push({ role: 'ai', text: '', widget: datepickerHtml });
-                // Remove the strategy widget from original message
                 const orig = state.chatHistory.find(m => m.widget && m.widget.includes('inline-strategy-wrap'));
-                if (orig) delete orig.widget;
+                if (orig) { delete orig.widget; orig.widgetConsumed = true; }
                 saveChatHistory();
                 renderChat();
             } else {
-                // Gradual deconstruction — create a tracking habit
                 try {
                     await batchCreateHabits([{ name: `Осознание: ${habitName}`, category: 'mindfulness', type: 'pre_destruction' }]);
                     state.chatHistory.push({ role: 'ai', text: `✅ **Стратегия:** ${label}. Начнём с осознания каждого акта. Я добавил микро-привычку для фиксации триггеров.` });
                     const orig = state.chatHistory.find(m => m.widget && m.widget.includes('inline-strategy-wrap'));
-                    if (orig) delete orig.widget;
+                    if (orig) { delete orig.widget; orig.widgetConsumed = true; }
                     saveChatHistory();
                     await loadHabits();
                     renderTracker();
@@ -1134,6 +1143,10 @@ async function handleChatSend() {
     catch (e) { reply = '{"message": "⚠️ Произошла ошибка. Попробуйте ещё раз.", "action": {"type": "NONE"}}'; console.error('Chat error:', e); }
 
     const parsed = parseAiReply(reply);
+    // Strip strategy widget if already chosen
+    if (state.strategyChosen && parsed.widget?.includes('inline-strategy-wrap')) {
+        parsed.widget = null;
+    }
     state.chatHistory.push({ role: 'ai', text: parsed.message, widget: parsed.widget || null });
     state.isChatLoading = false;
     renderChat();
@@ -1234,9 +1247,11 @@ function showToast(msg) {
 
 function saveChatHistory() {
     try { localStorage.setItem('chat_history_' + state.telegramId, JSON.stringify(state.chatHistory.slice(-50))); } catch (_) {}
+    try { localStorage.setItem('strategy_chosen_' + state.telegramId, JSON.stringify(state.strategyChosen)); } catch (_) {}
 }
 function loadChatHistory() {
     try { const s = localStorage.getItem('chat_history_' + state.telegramId); if (s) state.chatHistory = JSON.parse(s); } catch (_) {}
+    try { const s = localStorage.getItem('strategy_chosen_' + state.telegramId); if (s) state.strategyChosen = JSON.parse(s); } catch (_) {}
 }
 
 /* ═══ PROGRESS ═══ */
