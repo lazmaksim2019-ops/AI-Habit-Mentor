@@ -7,7 +7,9 @@ from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 logging.basicConfig(
     level=logging.INFO,
@@ -48,6 +50,17 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+
+templates = Jinja2Templates(directory="src/templates")
+app.mount("/static", StaticFiles(directory="src/static"), name="static")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index(request: Request):
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, "title": "Neuro-Adaptive AI Habit Mentor"},
+    )
 
 
 @app.exception_handler(Exception)
