@@ -1011,14 +1011,7 @@ function computeStreak() {
 function renderChat() {
     const container = document.getElementById('chat-messages');
     if (state.chatHistory.length === 0 && !state.isChatLoading) {
-        container.innerHTML = `<div class="message ai">${marked.parse(
-            'Привет! 👋 Я твой персональный AI-ментор по привычкам.\n\n' +
-            'Давай познакомимся поближе. Расскажи о себе:\n\n' +
-            '— Какая твоя главная цель прямо сейчас?\n' +
-            '— С какими привычками хочешь поработать?\n' +
-            '— Что тебя останавливало раньше?\n\n' +
-            'Я проанализирую твои ответы и составлю **персональный трекер** именно под тебя.'
-        )}</div>`;
+        container.innerHTML = '';
         return;
     }
     let html = '';
@@ -1354,6 +1347,13 @@ async function runDiagnostic() {
 async function startApp() {
     state.gender = getSavedGender();
     loadChatHistory();
+
+    // Seed greeting if chat is empty
+    if (state.chatHistory.length === 0) {
+        state.chatHistory.push({ role: 'ai', text: 'Привет! 👋 Я твой персональный AI-ментор по привычкам.\n\nДавай познакомимся поближе. Расскажи о себе:\n\n— Какая твоя главная цель прямо сейчас?\n— С какими привычками хочешь поработать?\n— Что тебя останавливало раньше?\n\nЯ проанализирую твои ответы и составлю **персональный трекер** именно под тебя.' });
+        saveChatHistory();
+    }
+
     setupChatInput();
     document.getElementById('habits-loading').classList.remove('hidden');
     await loadHabits();
