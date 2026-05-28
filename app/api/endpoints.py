@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -199,3 +199,48 @@ async def get_habits(
             for h in habits
         ]
     )
+
+
+@router.get("/api/diag")
+async def diagnostic():
+    results = {
+        "api_key_set": bool(settings.GEMINI_API_KEY),
+        "api_key_preview": settings.GEMINI_API_KEY[:8] + "..." if settings.GEMINI_API_KEY else "NOT SET",
+        "model": settings.GEMINI_MODEL,
+        "embedding_model": settings.GEMINI_EMBEDDING_MODEL,
+        "proxy_host_set": bool(settings.PROXY_HOST),
+        "proxy_port_set": bool(settings.PROXY_PORT),
+        "proxy_user_set": bool(settings.PROXY_USER),
+        "proxy_url": "configured" if settings.proxy_url else "not configured",
+    }
+
+    # Try a quick Gemini ping
+    try:
+        import httpx
+        provider = GeminiProvider(
+            api_key=settings.GEMINI_API_KEY,
+            model=settings.GEMINI_MODEL,
+            embedding_model=settings.GEMINI_EMBEDDING_MODEL,
+            proxy_url=settings.proxy_url,
+        )
+        test_payload = {
+            "contents": [{"parts": [{"text": "Say OK"}]}],
+        }
+        url = f"{provider.base_url}/models/{provider.model}:generateContent?key={provider.api_key}"
+        async with httpx.AsyncClient(**provider._client_kwargs) as client:
+            resp = await client.post(url, json=test_payload)
+            results["gemini_test_status"] = resp.status_code
+            if resp.status_code == 200:
+                data = resp.json()
+                results["gemini_test_ok"] = True
+                results["gemini_test_reply"] = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")[:200]
+            else:
+                results["gemini_test_ok"] = False
+                results["gemini_test_body"] = resp.text[:500]
+    except Exception as e:
+        results["gemini_test_ok"] = False
+        results["gemini_test_error"] = str(e)[:500]
+        import traceback
+        results["gemini_test_traceback"] = traceback.format_exc()[:500]
+
+    return results

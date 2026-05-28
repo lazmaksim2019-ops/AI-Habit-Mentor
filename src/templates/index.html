@@ -333,6 +333,8 @@
             padding: 32px 24px;
             background: var(--tg-bg);
             transition: opacity 0.5s ease, transform 0.5s ease;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .welcome-overlay.fade-out {
             opacity: 0;
@@ -340,13 +342,22 @@
             pointer-events: none;
         }
         .welcome-overlay.hidden {
-            display: none;
+            display: none !important;
         }
 
-        @media (min-width: 480px) {
-            body { max-width: 430px; margin: 0 auto; box-shadow: 0 0 40px rgba(0,0,0,0.5); min-height: 100vh; }
-            .bottom-nav { max-width: 430px; left: 50%; transform: translateX(-50%); }
-            .welcome-overlay { max-width: 430px; left: 50%; transform: translateX(-50%); }
+        /* ── Responsive: tablets & desktop ── */
+        @media (min-width: 640px) {
+            #app { max-width: 480px; margin: 0 auto; }
+            .bottom-nav { max-width: 480px; left: 50%; transform: translateX(-50%); }
+            .welcome-overlay .glass-strong { max-width: 400px; }
+            .welcome-overlay #consent-btn { max-width: 400px; }
+            .screen { padding: 24px 24px 12px; }
+        }
+        @media (min-width: 1024px) {
+            body { background: #07070d; }
+            #app { max-width: 480px; margin: 24px auto; border-radius: 24px; box-shadow: 0 0 60px rgba(0,0,0,0.6); min-height: calc(100vh - 48px); }
+            .bottom-nav { border-radius: 0 0 24px 24px; }
+            .welcome-overlay { max-width: 480px; left: 50%; transform: translateX(-50%); top: 24px; border-radius: 24px; height: calc(100vh - 48px); }
             .welcome-overlay.fade-out { transform: translateX(-50%) scale(1.05); }
         }
     </style>
@@ -512,6 +523,17 @@
         <div class="mt-4 glass-strong p-4" id="habits-stats-container">
             <h3 class="text-sm font-semibold mb-3">Статистика по привычкам</h3>
             <div id="habits-breakdown"></div>
+        </div>
+
+        <div class="mt-4 glass-strong p-4">
+            <h3 class="text-sm font-semibold mb-3">Диагностика</h3>
+            <button id="diag-btn" class="w-full py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-200 active:scale-95" style="background:var(--tg-secondary-bg); color:var(--tg-hint); border:1px solid rgba(255,255,255,0.06);">
+                Проверить соединение с API Gemini
+            </button>
+            <div id="diag-result" class="mt-3 text-xs hidden" style="color:var(--tg-hint);"></div>
+            <p class="text-xs mt-2" style="color:var(--tg-hint);">
+                Результаты также доступны в <code style="background:rgba(255,255,255,0.06); padding:1px 4px; border-radius:3px;">/api/diag</code>
+            </p>
         </div>
 
     </div>
@@ -1041,6 +1063,34 @@ function setupChatInput() {
 }
 
 /* ============================================================
+   DIAGNOSTIC
+   ============================================================ */
+async function runDiagnostic() {
+    const btn = document.getElementById('diag-btn');
+    const result = document.getElementById('diag-result');
+    btn.disabled = true;
+    btn.textContent = 'Проверка...';
+    result.classList.remove('hidden');
+    result.innerHTML = 'Запрос к /api/diag...';
+
+    try {
+        const res = await fetch('/api/diag');
+        const data = await res.json();
+        let html = '<div class="space-y-1.5">';
+        for (const [key, val] of Object.entries(data)) {
+            const color = val === true ? '#4ade80' : val === false ? '#f87171' : 'var(--tg-hint)';
+            html += `<div class="flex justify-between text-xs"><span>${key}</span><span style="color:${color};">${String(val).slice(0, 120)}</span></div>`;
+        }
+        html += '</div>';
+        result.innerHTML = html;
+    } catch (e) {
+        result.innerHTML = `<span style="color:#f87171;">Ошибка запроса: ${e.message}</span>`;
+    }
+    btn.disabled = false;
+    btn.textContent = 'Проверить соединение с API Gemini';
+}
+
+/* ============================================================
    COMPLIANCE (ФЗ-152)
    ============================================================ */
 function isConsentGiven() {
@@ -1122,6 +1172,9 @@ async function main() {
 
     // Consent button
     document.getElementById('consent-btn').addEventListener('click', acceptConsent);
+
+    // Diagnostic button
+    document.getElementById('diag-btn').addEventListener('click', runDiagnostic);
 
     // Update progress when returning to app
     document.addEventListener('visibilitychange', () => {
