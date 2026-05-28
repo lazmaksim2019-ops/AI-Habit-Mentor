@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     DATABASE_URL: str
     GEMINI_API_KEY: str
-    GEMINI_MODEL: str = "gemini-2.0-flash-lite"
+    GEMINI_MODEL: str = "gemini-3.1-flash-lite"
     GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
     PROXY_HOST: str | None = None
     PROXY_PORT: int | None = None
