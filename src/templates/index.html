@@ -304,7 +304,8 @@
         }
         .datepicker-overlay input[type="date"]:focus { border-color: var(--tg-button); }
 
-        .inline-datepicker-wrap { animation: msgIn 0.3s ease-out; }        .suggested-habit-card {
+        .inline-datepicker-wrap { animation: msgIn 0.3s ease-out; }
+        .inline-strategy-wrap { animation: msgIn 0.3s ease-out; }        .suggested-habit-card {
             background: var(--tg-secondary-bg);
             backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255,255,255,0.06);
@@ -1063,6 +1064,54 @@ function renderChat() {
     container.querySelectorAll('.inline-datepicker-input').forEach(input => {
         input.min = new Date().toISOString().slice(0, 10);
     });
+
+    // Strategy choice buttons
+    container.querySelectorAll('.strategy-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const wrap = e.target.closest('.inline-strategy-wrap');
+            const habitName = wrap.dataset.habitName || 'Цель';
+            const strategy = e.target.dataset.strategy;
+            const label = e.target.textContent;
+
+            // Create a habit based on chosen strategy
+            const isAbrupt = strategy === '0'; // 0 = abrupt cessation
+            if (isAbrupt) {
+                // Show date picker inline after selection
+                const datepickerHtml = `
+                    <div class="inline-datepicker-wrap glass p-3 my-2" data-habit-name="${habitName.replace(/"/g, '&quot;')}" data-habit-type="pre_destruction">
+                        <p class="text-xs font-semibold mb-2" style="color:var(--tg-text);">📅 Выберите дату Дня Х</p>
+                        <input type="date" class="inline-datepicker-input" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:var(--tg-section-bg);color:var(--tg-text);font-size:14px;font-family:inherit;outline:none;" />
+                        <button class="inline-datepicker-confirm w-full mt-2 py-2.5 rounded-xl text-sm font-bold" style="background:var(--tg-button);color:var(--tg-button-text);border:none;">Подтвердить</button>
+                    </div>
+                `;
+                // Add confirmation message and datepicker to chat
+                state.chatHistory.push({ role: 'ai', text: `✅ **Стратегия:** ${label}. Когда планируете День Х?` });
+                // Push the datepicker as a separate ai message with widget
+                state.chatHistory.push({ role: 'ai', text: '', widget: datepickerHtml });
+                // Remove the strategy widget from original message
+                const orig = state.chatHistory.find(m => m.widget && m.widget.includes('inline-strategy-wrap'));
+                if (orig) delete orig.widget;
+                saveChatHistory();
+                renderChat();
+            } else {
+                // Gradual deconstruction — create a tracking habit
+                try {
+                    await batchCreateHabits([{ name: `Осознание: ${habitName}`, category: 'mindfulness', type: 'pre_destruction' }]);
+                    state.chatHistory.push({ role: 'ai', text: `✅ **Стратегия:** ${label}. Начнём с осознания каждого акта. Я добавил микро-привычку для фиксации триггеров.` });
+                    const orig = state.chatHistory.find(m => m.widget && m.widget.includes('inline-strategy-wrap'));
+                    if (orig) delete orig.widget;
+                    saveChatHistory();
+                    await loadHabits();
+                    renderTracker();
+                    renderProgress();
+                    renderChat();
+                } catch (e) {
+                    showToast('Ошибка');
+                    console.error(e);
+                }
+            }
+        });
+    });
 }
 
 async function handleChatSend() {
@@ -1087,13 +1136,14 @@ async function handleChatSend() {
     renderTracker();
     renderProgress();
 
-    if (parsed.action?.type === 'TRIGGER_UI_WIDGET' && parsed.action.payload?.widget_type === 'DATE_PICKER') {
-        const habitName = parsed.action.payload.meta?.habit_name || 'Цель';
-        // Scroll to the widget
-        setTimeout(() => {
-            const container = document.getElementById('chat-messages');
-            container.scrollTop = container.scrollHeight;
-        }, 50);
+    if (parsed.action?.type === 'TRIGGER_UI_WIDGET') {
+        const wType = parsed.action.payload?.widget_type;
+        if (wType === 'DATE_PICKER' || wType === 'STRATEGY_CHOICE') {
+            setTimeout(() => {
+                const container = document.getElementById('chat-messages');
+                container.scrollTop = container.scrollHeight;
+            }, 50);
+        }
     }
 }
 
@@ -1121,14 +1171,28 @@ function parseAiReply(reply) {
                 const meta = parsed.action?.payload?.meta || {};
                 const habitName = meta.habit_name || 'Цель';
                 let widget = null;
-                if (parsed.action?.type === 'TRIGGER_UI_WIDGET' && parsed.action.payload?.widget_type === 'DATE_PICKER') {
-                    widget = `
-                        <div class="inline-datepicker-wrap glass p-3 my-2" data-habit-name="${habitName.replace(/"/g, '&quot;')}" data-habit-type="${(meta.habit_type || 'pre_destruction').replace(/"/g, '&quot;')}">
-                            <p class="text-xs font-semibold mb-2" style="color:var(--tg-text);">📅 Выберите дату Дня Х</p>
-                            <input type="date" class="inline-datepicker-input" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:var(--tg-section-bg);color:var(--tg-text);font-size:14px;font-family:inherit;outline:none;" />
-                            <button class="inline-datepicker-confirm w-full mt-2 py-2.5 rounded-xl text-sm font-bold" style="background:var(--tg-button);color:var(--tg-button-text);border:none;">Подтвердить</button>
-                        </div>
-                    `;
+
+                if (parsed.action?.type === 'TRIGGER_UI_WIDGET') {
+                    if (parsed.action.payload?.widget_type === 'DATE_PICKER') {
+                        widget = `
+                            <div class="inline-datepicker-wrap glass p-3 my-2" data-habit-name="${habitName.replace(/"/g, '&quot;')}" data-habit-type="${(meta.habit_type || 'pre_destruction').replace(/"/g, '&quot;')}">
+                                <p class="text-xs font-semibold mb-2" style="color:var(--tg-text);">📅 Выберите дату Дня Х</p>
+                                <input type="date" class="inline-datepicker-input" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:var(--tg-section-bg);color:var(--tg-text);font-size:14px;font-family:inherit;outline:none;" />
+                                <button class="inline-datepicker-confirm w-full mt-2 py-2.5 rounded-xl text-sm font-bold" style="background:var(--tg-button);color:var(--tg-button-text);border:none;">Подтвердить</button>
+                            </div>
+                        `;
+                    } else if (parsed.action.payload?.widget_type === 'STRATEGY_CHOICE') {
+                        const strategies = meta.strategies || ['Стратегия А', 'Стратегия Б'];
+                        let btns = strategies.map((s, i) => `
+                            <button class="strategy-btn flex-1 py-3 px-3 rounded-xl text-sm font-semibold transition-all active:scale-95" data-strategy="${i}" style="background:var(--tg-secondary-bg);color:var(--tg-text);border:1px solid rgba(255,255,255,0.08);">${s}</button>
+                        `).join('');
+                        widget = `
+                            <div class="inline-strategy-wrap glass p-3 my-2" data-habit-name="${habitName.replace(/"/g, '&quot;')}">
+                                <p class="text-xs font-semibold mb-3 text-center" style="color:var(--tg-hint);">Выберите стратегию:</p>
+                                <div class="flex gap-2">${btns}</div>
+                            </div>
+                        `;
+                    }
                 }
                 return { message: parsed.message, action: parsed.action || null, widget };
             }
