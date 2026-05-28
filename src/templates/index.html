@@ -208,10 +208,25 @@
             padding: 10px 14px;
             border-radius: 16px;
             font-size: 14px;
-            line-height: 1.5;
+            line-height: 1.6;
             word-wrap: break-word;
             animation: msgIn 0.25s ease-out;
         }
+        .message p { margin: 0 0 6px; }
+        .message p:last-child { margin-bottom: 0; }
+        .message ul, .message ol { margin: 4px 0; padding-left: 20px; }
+        .message li { margin-bottom: 3px; }
+        .message li:last-child { margin-bottom: 0; }
+        .message strong { font-weight: 700; }
+        .message code {
+            background: rgba(255,255,255,0.1);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: 'SF Mono', 'Courier New', monospace;
+        }
+        .message.user p { margin: 0; }
+        .message.user ul, .message.user ol { margin: 2px 0; }
         @keyframes msgIn { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
         .message.user {
@@ -850,11 +865,11 @@ function computeStreak() {
    ============================================================ */
 function renderChat() {
     const container = document.getElementById('chat-messages');
-    // Keep welcome message
     let html = `<div class="message ai">Привет! Я твой AI-ментор по привычкам. Расскажи, над какой привычкой хочешь работать сегодня?</div>`;
 
     for (const msg of state.chatHistory) {
-        html += `<div class="message ${msg.role}">${escapeHtml(msg.text)}</div>`;
+        const text = msg.role === 'ai' ? markdownToHtml(msg.text) : escapeHtml(msg.text);
+        html += `<div class="message ${msg.role}">${text}</div>`;
     }
 
     if (state.isChatLoading) {
@@ -870,6 +885,48 @@ function renderChat() {
 function escapeHtml(text) {
     const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
     return text.replace(/[&<>"']/g, c => map[c]);
+}
+
+function markdownToHtml(text) {
+    let html = escapeHtml(text)
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    const lines = html.split('\n');
+    let result = '';
+    let inUl = false;
+    let inOl = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        if (/^[-*]\s/.test(line)) {
+            if (!inUl) { if (inOl) { result += '</ol>'; inOl = false; } result += '<ul>'; inUl = true; }
+            result += '<li>' + line.replace(/^[-*]\s/, '') + '</li>';
+            continue;
+        }
+
+        if (/^\d+[.)]\s/.test(line)) {
+            if (!inOl) { if (inUl) { result += '</ul>'; inUl = false; } result += '<ol>'; inOl = true; }
+            result += '<li>' + line.replace(/^\d+[.)]\s/, '') + '</li>';
+            continue;
+        }
+
+        if (inUl) { result += '</ul>'; inUl = false; }
+        if (inOl) { result += '</ol>'; inOl = false; }
+
+        if (line.trim() === '') {
+            result += '<br>';
+        } else {
+            result += '<p>' + line + '</p>';
+        }
+    }
+
+    if (inUl) result += '</ul>';
+    if (inOl) result += '</ol>';
+
+    return result;
 }
 
 async function handleChatSend() {
