@@ -778,21 +778,15 @@ async function handleChatSend() {
 
 function parseSuggestedHabits(reply) {
     const container = document.getElementById('suggested-habits-container');
-    // Look for lines that look like habit suggestions
-    const lines = reply.split('\n');
+    const tagRegex = /\[ADD_HABIT:\s*(.+?)\]/g;
     const suggestions = [];
-    // Match patterns like: "1. **Название** — описание" or "- Название"
-    const habitPattern = /^\d+[.)]\s+\*{0,2}(.+?)\*{0,2}\s*[—–\-]\s*/;
-    const simplePattern = /^[-*]\s+\*{0,2}(.+?)\*{0,2}\s*[—–\-]\s*/;
+    let match;
 
-    for (const line of lines) {
-        let m = line.match(habitPattern) || line.match(simplePattern);
-        if (m) {
-            const title = m[1].trim();
-            if (title.length > 3 && title.length < 100 && !suggestions.some(s => s.title === title)) {
-                const existing = state.habits.some(h => h.title === title);
-                suggestions.push({ title, added: existing });
-            }
+    while ((match = tagRegex.exec(reply)) !== null) {
+        const title = match[1].trim();
+        if (title.length > 2 && title.length <= 60 && !suggestions.some(s => s.title === title)) {
+            const existing = state.habits.some(h => h.title === title);
+            suggestions.push({ title, added: existing });
         }
     }
 
@@ -801,9 +795,9 @@ function parseSuggestedHabits(reply) {
     let html = '<p class="text-xs font-semibold" style="color:var(--tg-hint);">Предложенные привычки:</p>';
     for (const s of suggestions) {
         html += `
-            <div class="suggested-habit-card" data-title="${s.title}">
+            <div class="suggested-habit-card" data-title="${s.title.replace(/"/g, '&quot;')}">
                 <span class="text-sm flex-1">${s.title}</span>
-                <button class="add-btn ${s.added ? 'added' : ''}" data-title="${s.title}">
+                <button class="add-btn ${s.added ? 'added' : ''}" data-title="${s.title.replace(/"/g, '&quot;')}">
                     ${s.added ? '✓' : '+'}
                 </button>
             </div>
@@ -811,21 +805,62 @@ function parseSuggestedHabits(reply) {
     }
     container.innerHTML = html;
     container.classList.remove('hidden');
+}
 
-    container.querySelectorAll('.add-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
-            if (btn.classList.contains('added')) return;
-            const title = btn.dataset.title;
-            try {
-                await batchCreateHabits([{ title, category: 'custom' }]);
-                btn.textContent = '✓';
-                btn.classList.add('added');
-                await loadHabits();
-                renderTracker();
-                renderProgress();
-            } catch (e) { console.error('Failed to add habit:', e); }
-        });
-    });
+// Event delegation for suggested habits (works even after DOM updates)
+document.getElementById('suggested-habits-container').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.add-btn');
+    if (!btn || btn.classList.contains('added')) return;
+
+    const title = btn.dataset.title;
+    if (!title) return;
+
+    btn.textContent = '...';
+    btn.style.pointerEvents = 'none';
+
+    try {
+        await batchCreateHabits([{ title, category: 'custom' }]);
+        btn.textContent = '✓';
+        btn.classList.add('added');
+        btn.style.pointerEvents = '';
+
+        // Refresh data
+        await loadHabits();
+        renderTracker();
+        renderProgress();
+
+        // Show toast and switch to tracker
+        showToast('Привычка добавлена!');
+        setTimeout(() => switchTab('tracker'), 800);
+    } catch (e) {
+        console.error('Failed to add habit:', e);
+        btn.textContent = '+';
+        btn.style.pointerEvents = '';
+        showToast('Ошибка. Попробуйте ещё раз.');
+    }
+});
+
+function showToast(msg) {
+    let toast = document.getElementById('toast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'toast';
+        toast.style.cssText = `
+            position: fixed; bottom: calc(var(--bottom-nav-height) + 20px);
+            left: 50%; transform: translateX(-50%);
+            padding: 10px 20px; border-radius: 12px;
+            background: var(--tg-button); color: var(--tg-button-text);
+            font-size: 13px; font-weight: 500; z-index: 999;
+            opacity: 0; transition: opacity 0.3s ease;
+            pointer-events: none; white-space: nowrap;
+            max-width: 90%; text-align: center;
+        `;
+        document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.style.opacity = '1';
+    clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2000);
 }
 
 function saveChatHistory() {
