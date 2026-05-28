@@ -22,15 +22,14 @@ class HabitLogRequest(BaseModel):
     is_completed: bool = Field(default=True, description="Completion status")
 
 
-class HabitCreateRequest(BaseModel):
-    telegram_id: int = Field(..., description="Telegram user ID")
+class HabitCreateItem(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Habit title")
     category: str = Field(default="custom", max_length=100, description="Habit category")
 
 
 class HabitCreateBatchRequest(BaseModel):
     telegram_id: int = Field(..., description="Telegram user ID")
-    habits: list[HabitCreateRequest] = Field(..., min_length=1, max_length=20)
+    habits: list[HabitCreateItem] = Field(..., min_length=1, max_length=20)
 
 
 class HabitLogResponse(BaseModel):

@@ -9,7 +9,7 @@ from app.api.schemas import (
     ChatRequest,
     ChatResponse,
     HabitCreateBatchRequest,
-    HabitCreateRequest,
+    HabitCreateItem,
     HabitLogRequest,
     HabitLogResponse,
     HabitResponse,
