@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import pathlib
 import sys
 from contextlib import asynccontextmanager
 
@@ -10,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
+BASE_DIR = pathlib.Path(__file__).parent
 
 logging.basicConfig(
     level=logging.INFO,
@@ -51,8 +54,8 @@ app.add_middleware(
 
 app.include_router(api_router)
 
-templates = Jinja2Templates(directory="src/templates")
-app.mount("/static", StaticFiles(directory="src/static"), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "src" / "templates"))
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "src" / "static")), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
