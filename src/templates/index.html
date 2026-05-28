@@ -683,7 +683,7 @@ async function sendChatMessage(message) {
         telegram_id: state.telegramId,
         message,
         gender: state.gender,
-        history: state.chatHistory.slice(-20).map(m => ({ role: m.role, text: m.text })),
+        history: state.chatHistory.slice(-4).map(m => ({ role: m.role, text: m.text })),
     });
     return data.reply;
 }
