@@ -905,7 +905,7 @@ function renderHabitsList() {
                     </div>
                     <div class="text-center py-3">
                         <p class="text-sm" style="color:var(--tg-hint);">⏳ Ожидание назначения Дня Х</p>
-                        <p class="text-xs mt-1">Обсудите дату в чате с AI-ментором</p>
+                        <p class="text-xs mt-1">Если вы выбрали резкий отказ — обсудите дату в чате</p>
                     </div>
                 </div>
             `;
@@ -1123,7 +1123,7 @@ function renderChat() {
                 renderChat();
             } else {
                 try {
-                    await batchCreateHabits([{ name: `Осознание: ${habitName}`, category: 'mindfulness', type: 'pre_destruction' }]);
+                    await batchCreateHabits([{ name: `Осознание: ${habitName}`, category: 'mindfulness', type: 'destruction' }]);
                     state.chatHistory.push({ role: 'ai', text: `✅ **Стратегия:** ${label}. Начнём с осознания каждого акта. Я добавил микро-привычку для фиксации триггеров.` });
                     const orig = state.chatHistory.find(m => m.widget && m.widget.includes('inline-strategy-wrap'));
                     if (orig) { delete orig.widget; orig.widgetConsumed = true; }
