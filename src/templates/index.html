@@ -1066,16 +1066,26 @@ function renderChat() {
             try {
                 await setTargetDate(habitName, date, habitType);
                 showToast(`День Х назначен на ${date}`);
-                // Replace widget with confirmation message
-                const confirmMsg = `✅ **День Х установлен на ${date}**. Дата деконструкции зафиксирована.`;
-                state.chatHistory.push({ role: 'ai', text: confirmMsg });
-                // Remove widget from the original message
+                // Replace widget with AI-guided Phase 2 transition
                 const orig = state.chatHistory.find(m => m.widget);
                 if (orig) delete orig.widget;
                 saveChatHistory();
                 await loadHabits();
                 renderTracker();
                 renderProgress();
+                // Trigger AI for Phase 2 opening
+                state.chatHistory.push({ role: 'user', text: `День Х назначен на ${date}. Что делать дальше?` });
+                state.isChatLoading = true;
+                renderChat();
+                let response;
+                try { response = await sendChatMessage(`День Х назначен на ${date}. Что дальше?`); }
+                catch (e) { response = { reply: 'Начинай подготовку к Дню Х: убирай триггеры и фиксируй каждый акт в трекере.', action: { type: 'NONE' } }; }
+                const parsed = parseAiReply(response.reply);
+                const backendAction = response.action;
+                const widget = backendAction?.type === 'TRIGGER_UI_WIDGET' ? _widgetFromAction(backendAction) : parsed.widget;
+                state.chatHistory.push({ role: 'ai', text: parsed.message, widget: widget || null });
+                state.isChatLoading = false;
+                saveChatHistory();
                 renderChat();
             } catch (e) {
                 showToast('Ошибка сохранения даты');
@@ -1116,7 +1126,7 @@ function renderChat() {
                         <button class="inline-datepicker-confirm w-full mt-2 py-2.5 rounded-xl text-sm font-bold" style="background:var(--tg-button);color:var(--tg-button-text);border:none;">Подтвердить</button>
                     </div>
                 `;
-                state.chatHistory.push({ role: 'ai', text: `✅ **Стратегия:** ${label}. Когда планируешь День Х?` });
+                state.chatHistory.push({ role: 'ai', text: `Ты выбрал стратегию: ${label}. Когда планируешь День Х? Укажи дату в календаре ниже.` });
                 state.chatHistory.push({ role: 'ai', text: '', widget: datepickerHtml });
                 const orig = state.chatHistory.find(m => m.widget && m.widget.includes('inline-strategy-wrap'));
                 if (orig) { delete orig.widget; orig.widgetConsumed = true; }
@@ -1125,13 +1135,26 @@ function renderChat() {
             } else {
                 try {
                     await batchCreateHabits([{ name: `Осознание: ${habitName}`, category: 'mindfulness', type: 'destruction' }]);
-                    state.chatHistory.push({ role: 'ai', text: `✅ **Стратегия:** ${label}. Начнём с осознания каждого акта. Я добавил микро-привычку для фиксации триггеров.` });
+                    // Remove strategy widget before AI response
                     const orig = state.chatHistory.find(m => m.widget && m.widget.includes('inline-strategy-wrap'));
                     if (orig) { delete orig.widget; orig.widgetConsumed = true; }
                     saveChatHistory();
                     await loadHabits();
                     renderTracker();
                     renderProgress();
+                    // Trigger AI's Phase 2 opening instead of hardcoded message
+                    state.chatHistory.push({ role: 'user', text: `Я выбрал стратегию: ${label}. Что делать дальше?` });
+                    state.isChatLoading = true;
+                    renderChat();
+                    let response;
+                    try { response = await sendChatMessage(`Я выбрал стратегию: ${label}. Что делать дальше?`); }
+                    catch (e) { response = { reply: 'Фиксируй каждый акт в трекере, когда возникает импульс. Это поможет собрать данные для деконструкции автоматизма.', action: { type: 'NONE' } }; }
+                    const parsed = parseAiReply(response.reply);
+                    const backendAction = response.action;
+                    const widget = backendAction?.type === 'TRIGGER_UI_WIDGET' ? _widgetFromAction(backendAction) : parsed.widget;
+                    state.chatHistory.push({ role: 'ai', text: parsed.message, widget: widget || null });
+                    state.isChatLoading = false;
+                    saveChatHistory();
                     renderChat();
                 } catch (e) {
                     showToast(`Ошибка: ${e.message.slice(0, 80)}`);
