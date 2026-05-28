@@ -687,13 +687,25 @@ async function loadHabits() {
 }
 
 async function sendChatMessage(message) {
+    const phase = _detectClientPhase();
     const data = await apiPost('/api/chat', {
         telegram_id: state.telegramId,
         message,
         gender: state.gender,
+        phase,
         history: state.chatHistory.slice(-10).map(m => ({ role: m.role, text: m.text })),
     });
     return data.reply;
+}
+
+function _detectClientPhase() {
+    if (state.strategyChosen || state.habits.length > 0) {
+        // Check if any habit has an operator in meta_kod
+        const hasOperators = state.habits.some(h => h.meta_kod && h.meta_kod.operator);
+        if (hasOperators) return 3;
+        return 2;
+    }
+    return 1;
 }
 
 async function batchCreateHabits(habits) {

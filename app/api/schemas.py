@@ -14,6 +14,7 @@ class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=4096, description="User message text")
     gender: str = Field(default="male", pattern="^(male|female)$", description="User grammatical gender for AI responses")
     history: list[ChatHistoryItem] = Field(default=[], description="Recent chat history for context")
+    phase: int = Field(default=1, ge=1, le=3, description="Current K-O-D phase detected by frontend (1=diagnosis, 2=triggers, 3=operators)")
 
 
 class ChatResponse(BaseModel):
