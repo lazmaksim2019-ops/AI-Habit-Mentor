@@ -76,7 +76,11 @@ async def init_db():
         ]:
             await conn.execute(text(f"ALTER TABLE user_habits ADD COLUMN IF NOT EXISTS {col} {col_type}"))
 
-        # Migrate title → name and set NOT NULL, then drop old title
-        await conn.execute(text("UPDATE user_habits SET name = title WHERE name IS NULL AND title IS NOT NULL"))
+        # Migrate title → name: only if title column still exists
+        title_exists = await conn.execute(text(
+            "SELECT column_name FROM information_schema.columns WHERE table_name='user_habits' AND column_name='title'"
+        ))
+        if title_exists.fetchone():
+            await conn.execute(text("UPDATE user_habits SET name = title WHERE name IS NULL AND title IS NOT NULL"))
+            await conn.execute(text("ALTER TABLE user_habits DROP COLUMN IF EXISTS title"))
         await conn.execute(text("ALTER TABLE user_habits ALTER COLUMN name SET NOT NULL"))
-        await conn.execute(text("ALTER TABLE user_habits DROP COLUMN IF EXISTS title"))
