@@ -4,10 +4,16 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 
+class ChatHistoryItem(BaseModel):
+    role: str = Field(..., pattern="^(user|ai)$", description="Message role: user or ai")
+    text: str = Field(..., description="Message text (parsed, without JSON wrappers)")
+
+
 class ChatRequest(BaseModel):
     telegram_id: int = Field(..., description="Telegram user ID")
     message: str = Field(..., min_length=1, max_length=4096, description="User message text")
     gender: str = Field(default="male", pattern="^(male|female)$", description="User grammatical gender for AI responses")
+    history: list[ChatHistoryItem] = Field(default=[], description="Recent chat history for context")
 
 
 class ChatResponse(BaseModel):

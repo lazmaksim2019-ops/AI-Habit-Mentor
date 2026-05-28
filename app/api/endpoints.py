@@ -210,7 +210,8 @@ async def chat(
 
     system_prompt = _build_system_prompt(habits_data, memory_context, gender=request.gender)
 
-    history: list = []
+    # Build history from request (frontend sends parsed chat history)
+    history = [{"role": "assistant" if m.role == "ai" else "user", "content": m.text} for m in (request.history or [])]
     ai_reply = await ai_provider.generate_response(system_prompt, history, cleaned_message)
 
     background_tasks.add_task(

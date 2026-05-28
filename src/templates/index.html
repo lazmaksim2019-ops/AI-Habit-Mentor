@@ -679,7 +679,12 @@ async function loadHabits() {
 }
 
 async function sendChatMessage(message) {
-    const data = await apiPost('/api/chat', { telegram_id: state.telegramId, message, gender: state.gender });
+    const data = await apiPost('/api/chat', {
+        telegram_id: state.telegramId,
+        message,
+        gender: state.gender,
+        history: state.chatHistory.slice(-20).map(m => ({ role: m.role, text: m.text })),
+    });
     return data.reply;
 }
 
