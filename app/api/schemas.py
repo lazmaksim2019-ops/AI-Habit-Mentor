@@ -44,7 +44,7 @@ class HabitCreateItem(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="Habit name")
     category: str = Field(default="custom", max_length=100, description="Habit category")
     type: str = Field(default="pre_destruction", pattern="^(pre_destruction|destruction|stabilization)$")
-    meta_kod: MetaKOD = Field(default=MetaKOD())
+    meta_kod: MetaKOD = Field(default_factory=MetaKOD)
 
 
 class HabitCreateBatchRequest(BaseModel):
@@ -79,7 +79,7 @@ class HabitResponse(BaseModel):
     name: str
     type: str = "pre_destruction"
     category: str = "custom"
-    meta_kod: MetaKOD = Field(default=MetaKOD())
+    meta_kod: MetaKOD = Field(default_factory=MetaKOD)
     target_date: str | None = None
     status: str = "active"
     logs: list[TriggerLog] = Field(default=[])
