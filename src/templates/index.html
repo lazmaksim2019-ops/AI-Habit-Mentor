@@ -304,7 +304,7 @@
         }
         .datepicker-overlay input[type="date"]:focus { border-color: var(--tg-button); }
 
-        .suggested-habit-card {
+        .inline-datepicker-wrap { animation: msgIn 0.3s ease-out; }        .suggested-habit-card {
             background: var(--tg-secondary-bg);
             backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255,255,255,0.06);
@@ -1019,12 +1019,50 @@ function renderChat() {
     for (const msg of state.chatHistory) {
         const text = msg.role === 'ai' ? marked.parse(msg.text) : marked.parseInline(msg.text);
         html += `<div class="message ${msg.role}">${text}</div>`;
+        if (msg.role === 'ai' && msg.widget) {
+            html += msg.widget;
+        }
     }
     if (state.isChatLoading) {
         html += `<div class="message ai" id="typing-indicator"><div class="typing-dots"><span></span><span></span><span></span></div></div>`;
     }
     container.innerHTML = html;
     container.scrollTop = container.scrollHeight;
+
+    // Attach events to inline widgets after render
+    container.querySelectorAll('.inline-datepicker-confirm').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const wrap = e.target.closest('.inline-datepicker-wrap');
+            const input = wrap.querySelector('.inline-datepicker-input');
+            const habitName = wrap.dataset.habitName;
+            const habitType = wrap.dataset.habitType || 'pre_destruction';
+            const date = input.value;
+            if (!date) return;
+            btn.disabled = true; btn.textContent = '...';
+            try {
+                await setTargetDate(habitName, date, habitType);
+                showToast(`День Х назначен на ${date}`);
+                // Replace widget with confirmation message
+                const confirmMsg = `✅ **День Х установлен на ${date}**. Дата деконструкции зафиксирована.`;
+                state.chatHistory.push({ role: 'ai', text: confirmMsg });
+                // Remove widget from the original message
+                const orig = state.chatHistory.find(m => m.widget);
+                if (orig) delete orig.widget;
+                saveChatHistory();
+                await loadHabits();
+                renderTracker();
+                renderProgress();
+                renderChat();
+            } catch (e) {
+                showToast('Ошибка сохранения даты');
+                btn.disabled = false; btn.textContent = 'Подтвердить';
+                console.error(e);
+            }
+        });
+    });
+    container.querySelectorAll('.inline-datepicker-input').forEach(input => {
+        input.min = new Date().toISOString().slice(0, 10);
+    });
 }
 
 async function handleChatSend() {
@@ -1038,9 +1076,10 @@ async function handleChatSend() {
 
     let reply;
     try { reply = await sendChatMessage(text); }
-    catch (e) { reply = '⚠️ Произошла ошибка. Пожалуйста, попробуйте ещё раз.'; console.error('Chat error:', e); }
+    catch (e) { reply = '{"message": "⚠️ Произошла ошибка. Попробуйте ещё раз.", "action": {"type": "NONE"}}'; console.error('Chat error:', e); }
 
-    state.chatHistory.push({ role: 'ai', text: reply });
+    const parsed = parseAiReply(reply);
+    state.chatHistory.push({ role: 'ai', text: parsed.message, widget: parsed.widget || null });
     state.isChatLoading = false;
     renderChat();
     saveChatHistory();
@@ -1048,38 +1087,56 @@ async function handleChatSend() {
     renderTracker();
     renderProgress();
 
-    await parseAiAction(reply);
+    if (parsed.action?.type === 'TRIGGER_UI_WIDGET' && parsed.action.payload?.widget_type === 'DATE_PICKER') {
+        const habitName = parsed.action.payload.meta?.habit_name || 'Цель';
+        // Scroll to the widget
+        setTimeout(() => {
+            const container = document.getElementById('chat-messages');
+            container.scrollTop = container.scrollHeight;
+        }, 50);
+    }
 }
 
-async function parseAiAction(reply) {
-    // Extract JSON block
-    const jsonMatch = reply.match(/```json\s*([\s\S]*?)```|({[\s\S]*?"message"[\s\S]*?"action"[\s\S]*?})/);
-    if (!jsonMatch) return;
+function parseAiReply(reply) {
+    // Strategy: look for JSON block in ```json ... ``` first, then try full parse
+    let jsonStr = null;
 
-    let parsed;
-    try { parsed = JSON.parse(jsonMatch[1] || jsonMatch[2]); }
-    catch (e) { return; }
-
-    if (!parsed.action || parsed.action.type === 'NONE') return;
-
-    if (parsed.action.type === 'TRIGGER_UI_WIDGET' && parsed.action.payload?.widget_type === 'DATE_PICKER') {
-        const meta = parsed.action.payload.meta || {};
-        const habitName = meta.habit_name || 'Цель';
-        const date = await showDatePicker(habitName);
-        if (date) {
-            try {
-                await setTargetDate(habitName, date, meta.habit_type || 'pre_destruction');
-                showToast(`День Х назначен на ${date}`);
-                await loadHabits();
-                renderTracker();
-                renderProgress();
-                switchTab('tracker');
-            } catch (e) {
-                showToast('Ошибка при сохранении даты');
-                console.error(e);
-            }
+    // Try extracting from ```json ... ``` block
+    const fenceMatch = reply.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    if (fenceMatch) {
+        jsonStr = fenceMatch[1];
+    } else {
+        // Try full string as JSON (strip possible ``` wrappers)
+        const trimmed = reply.trim();
+        const clean = trimmed.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+        if (clean.startsWith('{')) {
+            jsonStr = clean;
         }
     }
+
+    if (jsonStr) {
+        try {
+            const parsed = JSON.parse(jsonStr);
+            if (parsed && typeof parsed.message === 'string') {
+                const meta = parsed.action?.payload?.meta || {};
+                const habitName = meta.habit_name || 'Цель';
+                let widget = null;
+                if (parsed.action?.type === 'TRIGGER_UI_WIDGET' && parsed.action.payload?.widget_type === 'DATE_PICKER') {
+                    widget = `
+                        <div class="inline-datepicker-wrap glass p-3 my-2" data-habit-name="${habitName.replace(/"/g, '&quot;')}" data-habit-type="${(meta.habit_type || 'pre_destruction').replace(/"/g, '&quot;')}">
+                            <p class="text-xs font-semibold mb-2" style="color:var(--tg-text);">📅 Выберите дату Дня Х</p>
+                            <input type="date" class="inline-datepicker-input" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);background:var(--tg-section-bg);color:var(--tg-text);font-size:14px;font-family:inherit;outline:none;" />
+                            <button class="inline-datepicker-confirm w-full mt-2 py-2.5 rounded-xl text-sm font-bold" style="background:var(--tg-button);color:var(--tg-button-text);border:none;">Подтвердить</button>
+                        </div>
+                    `;
+                }
+                return { message: parsed.message, action: parsed.action || null, widget };
+            }
+        } catch (_) {}
+    }
+
+    // Fallback: plain text
+    return { message: reply, action: null, widget: null };
 }
 
 function showToast(msg) {
