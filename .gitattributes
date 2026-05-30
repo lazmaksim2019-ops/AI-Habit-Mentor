@@ -1,0 +1,6 @@
+# Скрываем SPA-шаблон из подсчета языков, так как проект бэкенд-ориентирован
+src/templates/index.html linguist-vendored
+
+# Скрываем логи, markdown-документы и скриншоты
+*.md linguist-documentation
+assets/screenshots/* linguist-documentation

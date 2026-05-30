@@ -1,0 +1,11 @@
+# Настройки линтера Ruff для обеспечения чистоты Python-кода
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "B", "I", "N"]
+ignore = ["E501"] # Игнорировать длину строки в сложных промптах
+
+[format]
+quote-style = "double"
+indent-style = "space"
