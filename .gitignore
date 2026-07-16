@@ -32,3 +32,4 @@ Desktop.ini
 # Project
 assets/screenshots/
 *.log
+codecov.exe

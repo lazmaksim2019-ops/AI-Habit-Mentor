@@ -552,85 +552,51 @@ async def telegram_webhook(update: dict):
         if text == "/start":
             reply_text = (
                 "🧠 *Neuro-Adaptive AI Habit Mentor*\n\n"
-                "Я — AI-ментор по привычкам. Открой Mini App, чтобы начать:\n"
-                "👉 @aIhabitmentorbot\n\n"
-                "Или просто напиши мне о своей привычке!"
+                "Я — AI-ментор по привычкам. Нажми кнопку ниже, чтобы открыть Mini App и начать работу!"
             )
-        else:
-            return {"ok": True}
-        async with httpx.AsyncClient(timeout=30) as client:
-            await client.post(
-                f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
-                json={"chat_id": chat_id, "text": reply_text, "parse_mode": "Markdown"},
-            )
+            async with httpx.AsyncClient(timeout=30) as client:
+                await client.post(
+                    f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
+                    json={
+                        "chat_id": chat_id,
+                        "text": reply_text,
+                        "parse_mode": "Markdown",
+                        "reply_markup": {
+                            "inline_keyboard": [
+                                [
+                                    {
+                                        "text": "🚀 Открыть Mini App",
+                                        "web_app": {"url": "https://ai-habit-mentor.onrender.com/"},
+                                    }
+                                ]
+                            ]
+                        },
+                    },
+                )
         return {"ok": True}
 
-    if not settings.GEMINI_API_KEY:
-        async with httpx.AsyncClient(timeout=30) as client:
-            await client.post(
-                f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
-                json={
-                    "chat_id": chat_id,
-                    "text": "Сервис временно недоступен. Попробуйте позже.",
-                },
-            )
-        return {"ok": True}
-
-    # Создаём сессию БД и обрабатываем сообщение
-    from app.database.session import get_session_maker
-
-    session_maker = get_session_maker()
-    async with session_maker() as session:
-        try:
-            telegram_id = from_user.get("id", chat_id)
-            user_uuid = await _get_or_create_user(telegram_id, session)
-
-            cleaned = await anonymize_text(text)
-
-            ai_provider = GeminiProvider(
-                api_key=settings.GEMINI_API_KEY,
-                model=settings.GEMINI_MODEL,
-                embedding_model=settings.GEMINI_EMBEDDING_MODEL,
-                proxy_url=settings.proxy_url,
-            )
-
-            embedding = await ai_provider.get_embedding(cleaned)
-            memory_context = await get_relevant_memory(session, user_uuid, embedding)
-
-            result = await session.execute(
-                select(UserHabit)
-                .where(UserHabit.user_uuid == user_uuid)
-                .order_by(UserHabit.created_at.desc())
-                .limit(50)
-            )
-            habits_data = list(result.scalars().all())
-
-            phase = _detect_phase(habits_data, [])
-            system_prompt = _build_system_prompt(habits_data, memory_context, current_phase=phase)
-
-            history = []
-            raw_reply = await ai_provider.generate_response(system_prompt, history, cleaned)
-
-            clean_json = _clean_json_from_response(raw_reply)
-            reply_text = raw_reply
-            try:
-                parsed = json.loads(clean_json)
-                reply_text = parsed.get("message", raw_reply)
-            except json.JSONDecodeError:
-                pass
-
-            # Сохраняем в векторную память
-            import asyncio
-
-            asyncio.ensure_future(_save_memory_background(user_uuid, cleaned, reply_text, ai_provider))
-
-        except Exception as e:
-            logger.error("Webhook error: %s", e)
-            reply_text = "Произошла ошибка. Попробуйте ещё раз."
-
+    # Для любых сообщений — отправляем кнопку открытия Mini App
+    reply_text = (
+        "🧠 *Neuro-Adaptive AI Habit Mentor*\n\n"
+        "Весь функционал AI-ментора доступен в Mini App. Нажми кнопку ниже, чтобы открыть!"
+    )
     async with httpx.AsyncClient(timeout=30) as client:
         await client.post(
             f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
-            json={"chat_id": chat_id, "text": reply_text, "parse_mode": "Markdown"},
+            json={
+                "chat_id": chat_id,
+                "text": reply_text,
+                "parse_mode": "Markdown",
+                "reply_markup": {
+                    "inline_keyboard": [
+                        [
+                            {
+                                "text": "🚀 Открыть Mini App",
+                                "web_app": {"url": "https://ai-habit-mentor.onrender.com/"},
+                            }
+                        ]
+                    ]
+                },
+            },
         )
     return {"ok": True}
