@@ -147,17 +147,24 @@ def _build_system_prompt(
     gender: str = "male",
     user_name: str = "",
     current_phase: int = 1,
+    strategy_chosen: bool = False,
 ) -> str:
     gender_instruction = "female" if gender == "female" else "male"
     name_instruction = f"Имя: {user_name}. Обращайся по имени раз в 4-5 реплик." if user_name else "Имя не указано."
     habits_json = _serialize_habits_context(habits_data)
 
+    # Если стратегия уже выбрана — не предлагаем STRATEGY_CHOICE
     phase_map = {
-        1: "ФАЗА 1: диагностика. Нет привычек. Локализуй категорию, предложи DATE_PICKER или STRATEGY_CHOICE.",
+        1: "ФАЗА 1: диагностика. Стратегия НЕ выбрана. Локализуй категорию, предложи STRATEGY_CHOICE или DATE_PICKER.",
         2: "ФАЗА 2: изоляция триггеров. operator пуст. Исследуй триггеры, один тезис apraqueen один вопрос.",
         3: "ФАЗА 3: операторы. Спроектируй category, operator (до 40 симв.), determination.",
     }
-    phase_block = phase_map.get(current_phase, phase_map[1])
+    
+    # Если стратегия выбрана, но фаза 1 — переходим к фазе 2
+    if strategy_chosen and current_phase == 1:
+        phase_block = "ФАЗА 2: изоляция триггеров. Стратегия выбрана. Исследуй триггеры, один тезис — один вопрос."
+    else:
+        phase_block = phase_map.get(current_phase, phase_map[1])
 
     return f"""## РОЛЬ
 Ты — AI-Mentor, системный архитектор поведения. Протокол Мета-К.О.Д. (автор Лазаренко А.).
@@ -253,7 +260,7 @@ async def chat(
     current_phase = max(server_phase, request.phase)  # use most advanced phase
 
     system_prompt = _build_system_prompt(
-        habits_data, memory_context, gender=request.gender, user_name=request.user_name, current_phase=current_phase
+        habits_data, memory_context, gender=request.gender, user_name=request.user_name, current_phase=current_phase, strategy_chosen=request.strategy_chosen
     )
 
     # Build history from request (frontend sends parsed chat history)
@@ -321,7 +328,7 @@ async def chat_stream(
     current_phase = max(server_phase, request.phase)
 
     system_prompt = _build_system_prompt(
-        habits_data, memory_context, gender=request.gender, user_name=request.user_name, current_phase=current_phase
+        habits_data, memory_context, gender=request.gender, user_name=request.user_name, current_phase=current_phase, strategy_chosen=request.strategy_chosen
     )
 
     history = [{"role": "assistant" if m.role == "ai" else "user", "content": m.text} for m in (request.history or [])]

@@ -23,6 +23,7 @@ class ChatRequest(BaseModel):
         le=3,
         description="Current K-O-D phase detected by frontend (1=diagnosis, 2=triggers, 3=operators)",
     )
+    strategy_chosen: bool = Field(default=False, description="Whether user has already chosen a strategy")
 
 
 class ChatResponse(BaseModel):

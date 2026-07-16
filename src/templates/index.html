@@ -716,6 +716,7 @@ async function sendChatMessageStream(message, onToken, onDone) {
                 gender: state.gender,
                 user_name: state.userName,
                 phase,
+                strategy_chosen: state.strategyChosen,
                 history: state.chatHistory.slice(-10).map(m => ({ role: m.role, text: m.text })),
             }),
         });
@@ -1264,7 +1265,12 @@ async function handleChatSend() {
                 // Show widget during streaming if it appeared
                 const w = parsed.widget;
                 if (w && !state.chatHistory[msgIdx].widget) {
-                    state.chatHistory[msgIdx].widget = w;
+                    // Блокируем виджет стратегии если уже выбрана
+                    if (state.strategyChosen && w.includes('inline-strategy-wrap')) {
+                        // Не добавляем виджет стратегии повторно
+                    } else {
+                        state.chatHistory[msgIdx].widget = w;
+                    }
                 }
                 renderChat();
             },
