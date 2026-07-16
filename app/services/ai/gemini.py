@@ -23,6 +23,7 @@ FALLBACK_RESPONSE = "Извините, сервис временно недос�
 
 class EmbeddingCache:
     """LRU cache for text embeddings — identical messages skip API call."""
+
     def __init__(self, maxsize: int = 100):
         self._cache: OrderedDict[str, list[float]] = OrderedDict()
         self._maxsize = maxsize

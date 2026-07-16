@@ -187,6 +187,7 @@ def _build_system_prompt(
 Память: {memory_context or "Новый паттерн."}
 Привычки: {habits_json}"""
 
+
 def _habit_to_response(h: UserHabit) -> HabitResponse:
     meta = h.meta_kod or {}
     logs_raw = h.logs or []
@@ -282,7 +283,6 @@ async def chat(
     return ChatResponse(reply=user_message, action=action_data)
 
 
-
 @router.post("/chat/stream")
 async def chat_stream(
     request: ChatRequest,
@@ -305,6 +305,7 @@ async def chat_stream(
 
     # Параллелизация: эмбеддинг + запрос привычек одновременно
     import asyncio
+
     embedding_task = asyncio.create_task(ai_provider.get_embedding(cleaned_message))
     habits_task = asyncio.create_task(
         session.execute(
@@ -329,7 +330,9 @@ async def chat_stream(
 
     async def event_stream():
         full_text = ""
-        async for token, accumulated in ai_provider.generate_response_streaming(system_prompt, history, cleaned_message):
+        async for token, accumulated in ai_provider.generate_response_streaming(
+            system_prompt, history, cleaned_message
+        ):
             if token:
                 full_text = accumulated
                 yield f"data: {json.dumps({'token': token, 'text': accumulated})}\n\n"
