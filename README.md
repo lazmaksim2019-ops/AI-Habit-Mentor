@@ -358,8 +358,3 @@ make docker-run      # docker run -p 8000:8000 --env-file .env ai-habit-mentor
   <sub>© 2026 — Neuro-Adaptive AI Habit Mentor</sub><br/>
   <sub><i>«Система не меняет привычки — она перестраивает нейронные связи.»</i></sub>
 </p>
-
----
-
-
-
