@@ -1,9 +1,7 @@
 import hashlib
-import json
 import logging
 import traceback
 from collections import OrderedDict
-from collections.abc import AsyncGenerator
 
 import httpx
 from tenacity import (
@@ -185,60 +183,3 @@ class GeminiProvider(BaseAIProvider):
         except Exception as e:
             logger.error("Unexpected error in generate_response: %s\n%s", e, traceback.format_exc())
         return FALLBACK_RESPONSE
-
-    async def generate_response_streaming(
-        self,
-        system_instruction: str,
-        history: list,
-        current_message: str,
-    ) -> AsyncGenerator[tuple[str, str], None]:
-        """
-        Stream response from Gemini.
-        Yields (token, accumulated_text) tuples.
-        """
-        url = f"{self.base_url}/models/{self.model}:streamGenerateContent?alt=sse&key={self.api_key}"
-
-        contents = []
-        for msg in history:
-            role = "model" if msg.get("role") == "assistant" else "user"
-            contents.append({"role": role, "parts": [{"text": msg.get("content", "")}]})
-        contents.append({"role": "user", "parts": [{"text": current_message}]})
-
-        payload = {
-            "system_instruction": {"parts": [{"text": system_instruction}]},
-            "contents": contents,
-        }
-
-        accumulated = ""
-        try:
-            async with httpx.AsyncClient(**self._client_kwargs) as client:
-                async with client.stream("POST", url, json=payload) as response:
-                    response.raise_for_status()
-                    async for line in response.aiter_lines():
-                        if line.startswith("data: "):
-                            data_str = line[6:].strip()
-                            if data_str == "[DONE]":
-                                break
-                            try:
-                                data = json.loads(data_str)
-                                candidates = data.get("candidates", [])
-                                if candidates:
-                                    parts = candidates[0].get("content", {}).get("parts", [])
-                                    if parts:
-                                        token = parts[0].get("text", "")
-                                        accumulated += token
-                                        yield (token, accumulated)
-                            except json.JSONDecodeError:
-                                continue
-        except httpx.HTTPStatusError as e:
-            logger.error("Gemini stream HTTP error: status=%s, body=%s", e.response.status_code, e.response.text[:500])
-        except httpx.ProxyError as e:
-            logger.error("Gemini stream proxy error: %s", e)
-        except httpx.ConnectError as e:
-            logger.error("Gemini stream connection error: %s", e)
-        except httpx.TimeoutException as e:
-            logger.error("Gemini stream timeout: %s", e)
-        except Exception as e:
-            logger.error("Gemini stream error: %s", e)
-
-        yield ("", accumulated)
