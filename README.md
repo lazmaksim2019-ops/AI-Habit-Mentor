@@ -37,6 +37,13 @@
   
 </p>
 
+<p align="center">
+  <img src="assets/screenshots/110.png" width="22%" alt="Экран трекера" />
+  <img src="assets/screenshots/111.png" width="22%" alt="Интерактивный чат" />
+  <img src="assets/screenshots/112.png" width="22%" alt="Выбор стратегии" />
+  <img src="assets/screenshots/113.png" width="22%" alt="Прогресс" />
+</p>
+
 ---
 
 ## 📋 Содержание
