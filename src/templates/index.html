@@ -378,7 +378,10 @@
             <div id="step-gender" class="w-full max-w-sm hidden">
                 <div class="glass-strong p-5 mb-6">
                     <p class="text-sm font-semibold mb-2" style="color:var(--tg-text);">Как к вам обращаться?</p>
-                    <p class="text-xs" style="color:var(--tg-hint);">Это поможет AI-ментору общаться с вами в правильном роде</p>
+                    <input type="text" id="user-name-input" placeholder="Как вас зовут?" maxlength="50"
+                           class="w-full mt-2 px-4 py-3 rounded-xl text-sm font-medium outline-none transition"
+                           style="background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);color:var(--tg-text);font-family:inherit;" />
+                    <p class="text-xs mt-3" style="color:var(--tg-hint);">Выберите род обращения:</p>
                 </div>
                 <div class="flex gap-3 mb-6">
                     <button class="gender-btn" data-gender="male">
@@ -592,13 +595,14 @@
 const CIRCUMFERENCE = 2 * Math.PI * 52;
 const COMPLIANCE_KEY = 'habit_mentor_compliance';
 const GENDER_KEY = 'habit_mentor_gender';
+const NAME_KEY = 'habit_mentor_name';
 
 const state = {
     telegramId: null, tg: null, user: null, isTelegram: false,
     habits: [], completedToday: new Set(), todayStr: '',
     streak: 0, bestStreak: 0,
     chatHistory: [], isChatLoading: false, currentTab: 'tracker',
-    gender: 'male', selectedGender: null, strategyChosen: false,
+    gender: 'male', selectedGender: null, userName: '', strategyChosen: false,
     datepickerResolve: null,
     countdownIntervals: [],
 };
@@ -644,13 +648,16 @@ function getSavedGender() { return localStorage.getItem(GENDER_KEY) || 'male'; }
 	    btn.className = 'w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 font-bold text-base transition-all duration-200 active:scale-95 shadow-lg shadow-indigo-500/20';
 	}
 	
-	function completeOnboarding() {
-	    localStorage.setItem(GENDER_KEY, state.selectedGender);
-	    state.gender = state.selectedGender;
-	    const overlay = document.getElementById('welcome-overlay');
-	    overlay.classList.add('fade-out');
-	    setTimeout(() => { overlay.classList.add('hidden'); document.body.style.overflow = ''; startApp(); }, 500);
-	}
+function completeOnboarding() {
+    const nameInput = document.getElementById('user-name-input');
+    state.userName = nameInput ? nameInput.value.trim() : '';
+    localStorage.setItem(NAME_KEY, state.userName);
+    localStorage.setItem(GENDER_KEY, state.selectedGender);
+    state.gender = state.selectedGender;
+    const overlay = document.getElementById('welcome-overlay');
+    overlay.classList.add('fade-out');
+    setTimeout(() => { overlay.classList.add('hidden'); document.body.style.overflow = ''; startApp(); }, 500);
+}
 	
 	function showWelcome() {
 	    const overlay = document.getElementById('welcome-overlay');
@@ -690,6 +697,7 @@ async function sendChatMessage(message) {
         telegram_id: state.telegramId,
         message,
         gender: state.gender,
+        user_name: state.userName,
         phase,
         history: state.chatHistory.slice(-10).map(m => ({ role: m.role, text: m.text })),
     });
@@ -1455,11 +1463,13 @@ async function runDiagnostic() {
 /* ═══ MAIN APP ═══ */
 async function startApp() {
     state.gender = getSavedGender();
+    state.userName = localStorage.getItem(NAME_KEY) || '';
     loadChatHistory();
 
     // Seed greeting if chat is empty
     if (state.chatHistory.length === 0) {
-        state.chatHistory.push({ role: 'ai', text: 'Привет! 👋 Я твой персональный AI-ментор по привычкам.\n\nДавай познакомимся поближе. Расскажи о себе:\n\n— Какая твоя главная цель прямо сейчас?\n— С какими привычками хочешь поработать?\n— Что тебя останавливало раньше?\n\nЯ проанализирую твои ответы и составлю **персональный трекер** именно под тебя.' });
+        const greetingName = state.userName ? `, ${state.userName}` : '';
+        state.chatHistory.push({ role: 'ai', text: `Привет${greetingName}! 👋 Я твой персональный AI-ментор по привычкам.\n\nДавай познакомимся поближе. Расскажи о себе:\n\n— Какая твоя главная цель прямо сейчас?\n— С какими привычками хочешь поработать?\n— Что тебя останавливало раньше?\n\nЯ проанализирую твои ответы и составлю **персональный трекер** именно под тебя.` });
         saveChatHistory();
     }
 
@@ -1493,6 +1503,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showWelcome();
     } else {
         state.gender = getSavedGender();
+        state.userName = localStorage.getItem(NAME_KEY) || '';
         hideWelcome();
         startApp();
     }

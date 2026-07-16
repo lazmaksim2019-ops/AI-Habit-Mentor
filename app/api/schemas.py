@@ -15,6 +15,7 @@ class ChatRequest(BaseModel):
     gender: str = Field(
         default="male", pattern="^(male|female)$", description="User grammatical gender for AI responses"
     )
+    user_name: str = Field(default="", max_length=100, description="User display name for AI personalization")
     history: list[ChatHistoryItem] = Field(default=[], description="Recent chat history for context")
     phase: int = Field(
         default=1,

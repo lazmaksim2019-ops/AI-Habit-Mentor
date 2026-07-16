@@ -142,12 +142,24 @@ def _detect_phase(habits_data: list[UserHabit], history: list) -> int:
 
 
 def _build_system_prompt(
-    habits_data: list[UserHabit], memory_context: str, gender: str = "male", current_phase: int = 1
+    habits_data: list[UserHabit],
+    memory_context: str,
+    gender: str = "male",
+    user_name: str = "",
+    current_phase: int = 1,
 ) -> str:
     gender_instruction = (
         "Обращайся к пользователю в женском роде (готова, сделала)."
         if gender == "female"
         else "Обращайся к пользователю в мужском роде (готов, сделал)."
+    )
+
+    name_instruction = (
+        f"Имя пользователя: {user_name}. Обращайся к пользователю по имени в приветствии "
+        f"и периодически (раз в 4-5 сообщений) для персонализации. "
+        f"Не используй имя в каждом сообщении — это снижает естественность."
+        if user_name
+        else "Имя пользователя не указано."
     )
 
     habits_json = _serialize_habits_context(habits_data)
@@ -173,6 +185,9 @@ def _build_system_prompt(
 
 ## ГЕНДЕРНАЯ АДАПТАЦИЯ
 {gender_instruction}
+
+## ПЕРСОНАЛИЗАЦИЯ
+{name_instruction}
 
 ## НАПРАВЛЕНИЯ РАБОТЫ
 Пользователь может работать в одном из двух направлений. Определи направление по контексту:
@@ -296,7 +311,7 @@ async def chat(
     current_phase = max(server_phase, request.phase)  # use most advanced phase
 
     system_prompt = _build_system_prompt(
-        habits_data, memory_context, gender=request.gender, current_phase=current_phase
+        habits_data, memory_context, gender=request.gender, user_name=request.user_name, current_phase=current_phase
     )
 
     # Build history from request (frontend sends parsed chat history)
