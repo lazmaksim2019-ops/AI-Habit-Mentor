@@ -35,7 +35,8 @@ async def lifespan(app: FastAPI):
 
         try:
             async with httpx.AsyncClient(timeout=30) as client:
-                public_url = os.getenv("RENDER_EXTERNAL_URL", "")
+                # WEBHOOK_URL имеет приоритет, затем RENDER_EXTERNAL_URL (авто от Render)
+                public_url = os.getenv("WEBHOOK_URL", "") or os.getenv("RENDER_EXTERNAL_URL", "")
                 if not public_url:
                     public_url = f"http://localhost:{os.getenv('PORT', '8000')}"
                 webhook_url = f"{public_url}/api/v1/webhook"

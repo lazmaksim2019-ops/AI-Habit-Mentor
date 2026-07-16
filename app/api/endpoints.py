@@ -542,7 +542,6 @@ async def telegram_webhook(update: dict):
 
     chat_id = message.get("chat", {}).get("id")
     text = message.get("text", "")
-    from_user = message.get("from", {})
 
     if not chat_id or not text:
         return {"ok": True}
