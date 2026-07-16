@@ -166,6 +166,15 @@ def _build_system_prompt(
     else:
         phase_block = phase_map.get(current_phase, phase_map[1])
 
+    # Параметризация схемы вывода: если стратегия уже выбрана — убираем STRATEGY_CHOICE
+    if strategy_chosen:
+        widget_types = "DATE_PICKER|NONE"
+        strategy_note = "Стратегия УЖЕ выбрана пользователем. КАТЕГОРИЧЕСКИ запрещено предлагать STRATEGY_CHOICE. Исследуй триггеры."
+        extra_constraint = strategy_note
+    else:
+        widget_types = "STRATEGY_CHOICE|DATE_PICKER"
+        extra_constraint = ""
+
     return f"""## РОЛЬ
 Ты — AI-Mentor, системный архитектор поведения. Протокол Мета-К.О.Д. (автор Лазаренко А.).
 Два направления: деконструкция (разрушение автоматизмов) и формирование (наработка новых).
@@ -173,6 +182,7 @@ def _build_system_prompt(
 
 ## ФАЗА: {current_phase}
 {phase_block}
+{extra_constraint}
 
 ## ЗАПРЕТЫ
 1. Никаких банальных советов («вдохни», «выпей воды»).
@@ -188,7 +198,7 @@ def _build_system_prompt(
 Деконструкция (избавиться) или формирование (наработать).
 
 ## ФОРМАТ ВЫВОДА (СТРОГИЙ JSON)
-{{{{"message": "текст без маркдауна, с вопросом","action":{{{{"type":"NONE|TRIGGER_UI_WIDGET","payload":{{{{"widget_type":"STRATEGY_CHOICE|DATE_PICKER","meta":{{{{"habit_name":"...","strategies":["резко","плавно"]}}}}}}}}}}}}}}}}
+{{{{"message": "текст без маркдауна, с вопросом","action":{{{{"type":"NONE|TRIGGER_UI_WIDGET","payload":{{{{"widget_type":"{widget_types}","meta":{{{{"habit_name":"...","strategies":["резко","плавно"]}}}}}}}}}}}}}}}}
 
 ## КОНТЕКСТ
 Память: {memory_context or "Новый паттерн."}
