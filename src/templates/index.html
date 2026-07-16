@@ -605,7 +605,7 @@ const state = {
     habits: [], completedToday: new Set(), todayStr: '',
     streak: 0, bestStreak: 0,
     chatHistory: [], isChatLoading: false, currentTab: 'tracker',
-    gender: 'male', selectedGender: null, userName: '', strategyChosen: false,
+    gender: 'male', selectedGender: null, userName: '', strategyChosen: false, dateChosen: false,
     datepickerResolve: null,
     countdownIntervals: [],
 };
@@ -703,6 +703,7 @@ async function sendChatMessage(message) {
         user_name: state.userName,
         phase,
         strategy_chosen: state.strategyChosen,
+        date_chosen: state.dateChosen,
         history: state.chatHistory.slice(-10).map(m => ({ role: m.role, text: m.text })),
     });
     return data;
@@ -1067,8 +1068,8 @@ function renderChat() {
         const text = msg.role === 'ai' ? marked.parse(msg.text) : marked.parseInline(msg.text);
         html += `<div class="message ${msg.role}">${text}</div>`;
         if (msg.role === 'ai' && msg.widget) {
-            // Виджет стратегии после выбора скрываем полностью
-            if (msg.widgetConsumed && msg.widget.includes('inline-strategy-wrap')) {
+            // Виджеты стратегии и даты после выбора скрываем полностью
+            if (msg.widgetConsumed && (msg.widget.includes('inline-strategy-wrap') || msg.widget.includes('inline-datepicker-wrap'))) {
                 // не рендерим
             } else {
                 html += msg.widget;
@@ -1094,9 +1095,10 @@ function renderChat() {
             try {
                 await setTargetDate(habitName, date, habitType);
                 showToast(`День Х назначен на ${date}`);
-                // Replace widget with AI-guided Phase 2 transition
-                const orig = state.chatHistory.find(m => m.widget);
-                if (orig) delete orig.widget;
+                state.dateChosen = true;
+                // Replace widget with AI-guided Phase 2 transition — удаляем именно datepicker
+                const orig = state.chatHistory.find(m => m.widget && m.widget.includes('inline-datepicker-wrap'));
+                if (orig) { delete orig.widget; orig.widgetConsumed = true; }
                 saveChatHistory();
                 await loadHabits();
                 renderTracker();
@@ -1208,8 +1210,10 @@ async function handleChatSend() {
         const parsed = parseAiReply(response.reply);
         const backendAction = response.action;
         const widget = backendAction?.type === 'TRIGGER_UI_WIDGET' ? _widgetFromAction(backendAction) : parsed.widget;
-        // Если стратегия уже выбрана — скрываем виджет стратегии полностью
-        if (state.strategyChosen && widget?.includes('inline-strategy-wrap')) {
+        // Скрываем виджеты, которые уже выбраны пользователем
+        const isStrategyWidget = widget?.includes('inline-strategy-wrap');
+        const isDateWidget = widget?.includes('inline-datepicker-wrap');
+        if ((state.strategyChosen && isStrategyWidget) || (state.dateChosen && isDateWidget)) {
             state.chatHistory.push({ role: 'ai', text: parsed.message, widget: null });
         } else {
             state.chatHistory.push({ role: 'ai', text: parsed.message, widget: widget || null });
@@ -1353,10 +1357,12 @@ function showToast(msg) {
 function saveChatHistory() {
     try { localStorage.setItem('chat_history_' + state.telegramId, JSON.stringify(state.chatHistory.slice(-50))); } catch (_) {}
     try { localStorage.setItem('strategy_chosen_' + state.telegramId, JSON.stringify(state.strategyChosen)); } catch (_) {}
+    try { localStorage.setItem('date_chosen_' + state.telegramId, JSON.stringify(state.dateChosen)); } catch (_) {}
 }
 function loadChatHistory() {
     try { const s = localStorage.getItem('chat_history_' + state.telegramId); if (s) state.chatHistory = JSON.parse(s); } catch (_) {}
     try { const s = localStorage.getItem('strategy_chosen_' + state.telegramId); if (s) state.strategyChosen = JSON.parse(s); } catch (_) {}
+    try { const s = localStorage.getItem('date_chosen_' + state.telegramId); if (s) state.dateChosen = JSON.parse(s); } catch (_) {}
 }
 
 /* ═══ PROGRESS ═══ */

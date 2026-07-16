@@ -148,6 +148,7 @@ def _build_system_prompt(
     user_name: str = "",
     current_phase: int = 1,
     strategy_chosen: bool = False,
+    date_chosen: bool = False,
 ) -> str:
     gender_instruction = "female" if gender == "female" else "male"
     name_instruction = f"Имя: {user_name}. Обращайся по имени раз в 4-5 реплик." if user_name else "Имя не указано."
@@ -166,14 +167,21 @@ def _build_system_prompt(
     else:
         phase_block = phase_map.get(current_phase, phase_map[1])
 
-    # Параметризация схемы вывода: если стратегия уже выбрана — убираем STRATEGY_CHOICE
+    # Параметризация схемы вывода
     if strategy_chosen:
-        widget_types = "DATE_PICKER|NONE"
         strategy_note = "Стратегия УЖЕ выбрана пользователем. КАТЕГОРИЧЕСКИ запрещено предлагать STRATEGY_CHOICE. Исследуй триггеры."
-        extra_constraint = strategy_note
+    else:
+        strategy_note = ""
+
+    if date_chosen:
+        date_note = "День Х УЖЕ назначен. КАТЕГОРИЧЕСКИ запрещено предлагать DATE_PICKER."
+        widget_types = "NONE"
+    elif strategy_chosen:
+        widget_types = "DATE_PICKER|NONE"
     else:
         widget_types = "STRATEGY_CHOICE|DATE_PICKER"
-        extra_constraint = ""
+
+    extra_constraint = (strategy_note + " " + date_note).strip() if (strategy_note or date_note) else ""
 
     return f"""## РОЛЬ
 Ты — AI-Mentor, системный архитектор поведения. Протокол Мета-К.О.Д. (автор Лазаренко А.).
@@ -269,6 +277,9 @@ async def chat(
     server_phase = _detect_phase(habits_data, request.history or [])
     current_phase = max(server_phase, request.phase)  # use most advanced phase
 
+    # Дата выбрана, если в запросе помечено ИЛИ у привычки уже есть target_date
+    date_already_chosen = request.date_chosen or any((h.target_date is not None) for h in habits_data)
+
     system_prompt = _build_system_prompt(
         habits_data,
         memory_context,
@@ -276,6 +287,7 @@ async def chat(
         user_name=request.user_name,
         current_phase=current_phase,
         strategy_chosen=request.strategy_chosen,
+        date_chosen=date_already_chosen,
     )
 
     # Build history from request (frontend sends parsed chat history)
