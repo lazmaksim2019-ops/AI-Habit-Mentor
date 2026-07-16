@@ -34,8 +34,7 @@
   <a href="https://ai-habit-mentor.onrender.com/"><b>🚀 Live Demo</b></a>
   ·
   <a href="https://t.me/aIhabitmentorbot"><b>🤖 Открыть в Telegram</b></a>
-  ·
-  <a href="https://github.com/lazmaksim2019-ops/AI-Habit-Mentor"><b>📦 GitHub</b></a>
+  
 </p>
 
 ---
