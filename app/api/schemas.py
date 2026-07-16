@@ -24,6 +24,7 @@ class ChatRequest(BaseModel):
         description="Current K-O-D phase detected by frontend (1=diagnosis, 2=triggers, 3=operators)",
     )
     strategy_chosen: bool = Field(default=False, description="Whether user has already chosen a strategy")
+    strategy_type: str = Field(default="", description="Chosen strategy type: 'abrupt' (Day X) or 'gradual' (no Day X)")
     date_chosen: bool = Field(default=False, description="Whether user has already chosen a target date (Day X)")
 
 

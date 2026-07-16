@@ -148,6 +148,7 @@ def _build_system_prompt(
     user_name: str = "",
     current_phase: int = 1,
     strategy_chosen: bool = False,
+    strategy_type: str = "",
     date_chosen: bool = False,
 ) -> str:
     gender_instruction = "female" if gender == "female" else "male"
@@ -175,6 +176,10 @@ def _build_system_prompt(
 
     if date_chosen:
         date_note = "День Х УЖЕ назначен. КАТЕГОРИЧЕСКИ запрещено предлагать DATE_PICKER."
+        widget_types = "NONE"
+    elif strategy_chosen and strategy_type == "gradual":
+        # Плавная стратегия — День Х не назначается, datepicker не нужен
+        date_note = "Выбрана плавная стратегия (без Дня Х). КАТЕГОРИЧЕСКИ запрещено предлагать DATE_PICKER."
         widget_types = "NONE"
     elif strategy_chosen:
         widget_types = "DATE_PICKER|NONE"
@@ -287,6 +292,7 @@ async def chat(
         user_name=request.user_name,
         current_phase=current_phase,
         strategy_chosen=request.strategy_chosen,
+        strategy_type=request.strategy_type,
         date_chosen=date_already_chosen,
     )
 
