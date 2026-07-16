@@ -699,6 +699,7 @@ async function sendChatMessage(message) {
         gender: state.gender,
         user_name: state.userName,
         phase,
+        strategy_chosen: state.strategyChosen,
         history: state.chatHistory.slice(-10).map(m => ({ role: m.role, text: m.text })),
     });
     return data;
@@ -1116,8 +1117,9 @@ function renderChat() {
         const text = msg.role === 'ai' ? marked.parse(msg.text) : marked.parseInline(msg.text);
         html += `<div class="message ${msg.role}">${text}</div>`;
         if (msg.role === 'ai' && msg.widget) {
+            // Виджет стратегии после выбора скрываем полностью
             if (msg.widgetConsumed && msg.widget.includes('inline-strategy-wrap')) {
-                html += msg.widget.replace(/<button /g, '<button disabled style="opacity:0.4;cursor:not-allowed;" ').replace('Выберите стратегию:', 'Стратегия выбрана');
+                // не рендерим
             } else {
                 html += msg.widget;
             }
@@ -1258,20 +1260,10 @@ async function handleChatSend() {
     let finalAction = { type: 'NONE', payload: {} };
     try {
         await sendChatMessageStream(text,
-            // onToken: update the placeholder message with accumulated text
+            // onToken: обновляем только текст (виджет парсим только в onDone, чтобы не было моргания)
             (accumulatedText) => {
                 const parsed = parseAiReply(accumulatedText);
                 state.chatHistory[msgIdx].text = parsed.message;
-                // Show widget during streaming if it appeared
-                const w = parsed.widget;
-                if (w && !state.chatHistory[msgIdx].widget) {
-                    // Блокируем виджет стратегии если уже выбрана
-                    if (state.strategyChosen && w.includes('inline-strategy-wrap')) {
-                        // Не добавляем виджет стратегии повторно
-                    } else {
-                        state.chatHistory[msgIdx].widget = w;
-                    }
-                }
                 renderChat();
             },
             // onDone
