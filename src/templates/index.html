@@ -12,15 +12,26 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <style>
         :root {
-            --tg-bg: var(--tg-theme-bg-color, #0f0f1a);
-            --tg-text: var(--tg-theme-text-color, #e4e4e7);
-            --tg-hint: var(--tg-theme-hint-color, #71717a);
+            --tg-bg: var(--tg-theme-bg-color, #0b0b1a);
+            --tg-text: var(--tg-theme-text-color, #f1f1f6);
+            --tg-hint: var(--tg-theme-hint-color, #8b8b9e);
             --tg-link: var(--tg-theme-link-color, #818cf8);
-            --tg-button: var(--tg-theme-button-color, #8b5cf6);
+            --tg-button: var(--tg-theme-button-color, #6366f1);
             --tg-button-text: var(--tg-theme-button-text-color, #ffffff);
-            --tg-secondary-bg: var(--tg-theme-secondary-bg-color, rgba(255,255,255,0.04));
-            --tg-section-bg: var(--tg-theme-section-bg-color, rgba(255,255,255,0.06));
+            --tg-secondary-bg: var(--tg-theme-secondary-bg-color, rgba(255,255,255,0.06));
+            --tg-section-bg: var(--tg-theme-section-bg-color, rgba(255,255,255,0.08));
             --bottom-nav-height: 72px;
+        }
+
+        /* Светлая тема Telegram */
+        @media (prefers-color-scheme: light) {
+            :root {
+                --tg-bg: var(--tg-theme-bg-color, #f5f5fa);
+                --tg-text: var(--tg-theme-text-color, #1a1a2e);
+                --tg-hint: var(--tg-theme-hint-color, #6b6b80);
+                --tg-secondary-bg: var(--tg-theme-secondary-bg-color, rgba(0,0,0,0.04));
+                --tg-section-bg: var(--tg-theme-section-bg-color, rgba(0,0,0,0.06));
+            }
         }
 
         *, *::before, *::after { box-sizing: border-box; }
@@ -57,13 +68,13 @@
         .screen::-webkit-scrollbar-thumb { background: var(--tg-hint); border-radius: 4px; }
         .screen.active { display: flex; flex-direction: column; }
 
-        .glass { background: var(--tg-secondary-bg); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; }
-        .glass-strong { background: var(--tg-section-bg); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; }
+        .glass { background: color-mix(in srgb, var(--tg-text) 6%, var(--tg-bg)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid color-mix(in srgb, var(--tg-text) 10%, transparent); border-radius: 16px; }
+        .glass-strong { background: color-mix(in srgb, var(--tg-text) 8%, var(--tg-bg)); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid color-mix(in srgb, var(--tg-text) 12%, transparent); border-radius: 20px; }
 
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; right: 0;
             height: var(--bottom-nav-height);
-            background: rgba(15,15,26,0.92);
+            background: color-mix(in srgb, var(--tg-bg) 92%, transparent);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
             border-top: 1px solid rgba(255,255,255,0.06);
@@ -85,16 +96,16 @@
         .nav-item .nav-icon svg { width: 22px; height: 22px; transition: all 0.2s; }
         .nav-item .nav-label { font-size: 10px; font-weight: 500; letter-spacing: 0.3px; }
         .nav-item.active { color: var(--tg-button); }
-        .nav-item.active .nav-icon svg { filter: drop-shadow(0 0 6px rgba(139,92,246,0.4)); }
+        .nav-item.active .nav-icon svg { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--tg-button) 50%, transparent)); }
         .nav-item.active::after {
             content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
             width: 20px; height: 2.5px; background: var(--tg-button); border-radius: 0 0 4px 4px;
         }
 
         .habit-card {
-            background: var(--tg-secondary-bg);
+            background: color-mix(in srgb, var(--tg-text) 6%, var(--tg-bg));
             backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255,255,255,0.06);
+            border: 1px solid color-mix(in srgb, var(--tg-text) 10%, transparent);
             border-radius: 14px;
             padding: 14px 16px;
             display: flex; align-items: center; gap: 14px;
@@ -105,8 +116,8 @@
         }
         .habit-card:active { transform: scale(0.97); }
         .habit-card.completed {
-            border-color: rgba(74,222,128,0.2);
-            background: rgba(74,222,128,0.06);
+            border-color: color-mix(in srgb, #4ade80 30%, transparent);
+            background: color-mix(in srgb, #4ade80 8%, transparent);
         }
         .habit-card.completed .habit-check { background: var(--tg-button); border-color: var(--tg-button); }
         .habit-card.completed .habit-check-inner { opacity: 1; }
@@ -126,7 +137,7 @@
         .habit-check-inner { width: 10px; height: 10px; border-radius: 50%; background: white; opacity: 0; transition: opacity 0.2s; }
 
         .progress-ring { transform: rotate(-90deg); width: 120px; height: 120px; }
-        .progress-ring .bg-circle { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 6; }
+        .progress-ring .bg-circle { fill: none; stroke: color-mix(in srgb, var(--tg-text) 10%, transparent); stroke-width: 6; }
         .progress-ring .fg-circle {
             fill: none; stroke: var(--tg-button);
             stroke-width: 6; stroke-linecap: round;
@@ -159,8 +170,8 @@
         }
         .message.ai {
             align-self: flex-start;
-            background: var(--tg-secondary-bg);
-            border: 1px solid rgba(255,255,255,0.06);
+            background: color-mix(in srgb, var(--tg-text) 6%, var(--tg-bg));
+            border: 1px solid color-mix(in srgb, var(--tg-text) 10%, transparent);
             border-bottom-left-radius: 4px;
         }
         .message p { margin: 0 0 8px; }
@@ -190,8 +201,8 @@
         .chat-input-wrap { display: flex; gap: 8px; padding: 8px 0 4px; align-items: flex-end; }
         .chat-input-wrap textarea {
             flex: 1;
-            background: var(--tg-secondary-bg);
-            border: 1px solid rgba(255,255,255,0.08);
+            background: color-mix(in srgb, var(--tg-text) 6%, var(--tg-bg));
+            border: 1px solid color-mix(in srgb, var(--tg-text) 12%, transparent);
             border-radius: 14px;
             padding: 10px 14px;
             color: var(--tg-text);
@@ -346,54 +357,54 @@
 
 <!-- ═══ WELCOME OVERLAY (FZ-152 + Gender) ═══ -->
 <div id="welcome-overlay" class="welcome-overlay">
-    <div class="w-20 h-20 mb-6 rounded-3xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center shadow-2xl shadow-purple-500/30">
-        <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-    </div>
+            <div class="w-20 h-20 mb-6 rounded-3xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-2xl shadow-indigo-500/30">
+                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
 
-    <h1 class="text-2xl font-extrabold text-center mb-2 bg-gradient-to-r from-purple-300 to-blue-300 bg-clip-text text-transparent">
-        Ментор привычек
-    </h1>
-    <p class="text-sm mb-6 text-center" style="color:var(--tg-hint);">
-        Нейро-адаптивный AI-трекер с долгосрочной памятью
-    </p>
-
-    <div id="step-consent" class="w-full max-w-sm">
-        <div class="glass-strong p-5 mb-6">
-            <p class="text-xs leading-relaxed" style="color:var(--tg-hint);">
-                Нажимая кнопку <strong style="color:var(--tg-text);">«Продолжить»</strong>, вы даёте
-                согласие на обработку персональных данных в соответствии с
-                <strong style="color:var(--tg-text);">ФЗ-152 «О персональных данных»</strong>
-                и принимаете условия Политики конфиденциальности.
+            <h1 class="text-2xl font-extrabold text-center mb-2 bg-gradient-to-r from-indigo-300 to-indigo-100 bg-clip-text text-transparent">
+                Ментор привычек
+            </h1>
+            <p class="text-sm mb-6 text-center" style="color:var(--tg-hint);">
+                Нейро-адаптивный AI-трекер с долгосрочной памятью
             </p>
-        </div>
-        <button id="consent-btn"
-                class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 font-bold text-base transition-all duration-200 active:scale-95 shadow-lg shadow-purple-500/20">
-            Продолжить
-        </button>
-    </div>
 
-    <div id="step-gender" class="w-full max-w-sm hidden">
-        <div class="glass-strong p-5 mb-6">
-            <p class="text-sm font-semibold mb-2">Как к вам обращаться?</p>
-            <p class="text-xs" style="color:var(--tg-hint);">Это поможет AI-ментору общаться с вами в правильном роде</p>
-        </div>
-        <div class="flex gap-3 mb-6">
-            <button class="gender-btn" data-gender="male">
-                <span class="text-2xl block mb-1">👨</span>
-                <span>Мужской род</span>
-            </button>
-            <button class="gender-btn" data-gender="female">
-                <span class="text-2xl block mb-1">👩</span>
-                <span>Женский род</span>
-            </button>
-        </div>
-        <button id="gender-start-btn" disabled
-                class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 font-bold text-base transition-all duration-200 active:scale-95 shadow-lg shadow-purple-500/20 opacity-40 cursor-not-allowed">
-            Начать
-        </button>
-    </div>
+            <div id="step-consent" class="w-full max-w-sm">
+                <div class="glass-strong p-5 mb-6">
+                    <p class="text-xs leading-relaxed" style="color:var(--tg-hint);">
+                        Нажимая кнопку <strong style="color:var(--tg-text);">«Продолжить»</strong>, вы даёте
+                        согласие на обработку персональных данных в соответствии с
+                        <strong style="color:var(--tg-text);">ФЗ-152 «О персональных данных»</strong>
+                        и принимаете условия Политики конфиденциальности.
+                    </p>
+                </div>
+                <button id="consent-btn"
+                        class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 font-bold text-base transition-all duration-200 active:scale-95 shadow-lg shadow-indigo-500/20">
+                    Продолжить
+                </button>
+            </div>
+
+            <div id="step-gender" class="w-full max-w-sm hidden">
+                <div class="glass-strong p-5 mb-6">
+                    <p class="text-sm font-semibold mb-2" style="color:var(--tg-text);">Как к вам обращаться?</p>
+                    <p class="text-xs" style="color:var(--tg-hint);">Это поможет AI-ментору общаться с вами в правильном роде</p>
+                </div>
+                <div class="flex gap-3 mb-6">
+                    <button class="gender-btn" data-gender="male">
+                        <span class="text-2xl block mb-1">👨</span>
+                        <span>Мужской род</span>
+                    </button>
+                    <button class="gender-btn" data-gender="female">
+                        <span class="text-2xl block mb-1">👩</span>
+                        <span>Женский род</span>
+                    </button>
+                </div>
+                <button id="gender-start-btn" disabled
+                        class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 font-bold text-base transition-all duration-200 active:scale-95 shadow-lg shadow-indigo-500/20 opacity-40 cursor-not-allowed">
+                    Начать
+                </button>
+            </div>
 
     <p class="text-xs mt-6" style="color:var(--tg-hint);">v1.1.0</p>
 </div>
@@ -442,7 +453,7 @@
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
                 <p class="text-sm font-medium mb-1">Пока нет привычек</p>
                 <p class="text-xs">AI-ментор подберёт их специально для вас</p>
-                <button id="goto-chat-empty" class="mt-4 py-2.5 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold text-sm tracking-wide transition-all active:scale-95 shadow-lg shadow-purple-500/30">
+                <button id="goto-chat-empty" class="mt-4 py-2.5 px-6 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-bold text-sm tracking-wide transition-all active:scale-95 shadow-lg shadow-indigo-500/30">
                     Пройти диагностику
                 </button>
             </div>
@@ -452,7 +463,7 @@
     <!-- ─── SCREEN 2: AI CHAT ─── -->
     <div class="screen" id="screen-chat">
         <div class="flex items-center gap-3 pb-3 mb-2 border-b" style="border-color:rgba(255,255,255,0.06);">
-            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center text-sm font-bold shrink-0">AI</div>
+            <div class="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-sm font-bold shrink-0">AI</div>
             <div class="flex-1 min-w-0">
                 <p class="text-sm font-semibold">AI Ментор</p>
                 <p class="text-xs" style="color:var(--tg-hint);" id="chat-status">Всегда рядом</p>
@@ -476,8 +487,8 @@
     <!-- ─── SCREEN 3: PROGRESS ─── -->
     <div class="screen" id="screen-progress">
         <div class="glass-strong p-5 mb-4 text-center">
-            <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-purple-500 to-telegram flex items-center justify-center text-2xl font-bold" id="profile-avatar"
-                 style="background:linear-gradient(135deg, var(--tg-button), #6366f1);">?</div>
+            <div class="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-2xl font-bold" id="profile-avatar"
+                 style="background:linear-gradient(135deg, var(--tg-button), #4338ca);">?</div>
             <h2 class="text-lg font-bold" id="profile-name">Загрузка...</h2>
             <p class="text-sm" style="color:var(--tg-hint);" id="profile-username"></p>
             <p class="text-xs mt-1" style="color:var(--tg-hint);" id="profile-gender-label"></p>
@@ -603,26 +614,30 @@ const state = {
 };
 
 /* ═══ TELEGRAM INIT ═══ */
-function initTelegram() {
-    const tg = window.Telegram?.WebApp;
-    if (tg) {
-        state.tg = tg; state.isTelegram = true;
-        tg.ready(); tg.expand();
-        state.user = tg.initDataUnsafe?.user || null;
-        state.telegramId = state.user?.id || Date.now();
-        document.documentElement.style.setProperty('--tg-bg', tg.backgroundColor || '#0f0f1a');
-        document.documentElement.style.setProperty('--tg-text', tg.textColor || '#e4e4e7');
-        document.documentElement.style.setProperty('--tg-button', tg.buttonColor || '#8b5cf6');
-        document.documentElement.style.setProperty('--tg-button-text', tg.buttonTextColor || '#ffffff');
-        document.documentElement.style.setProperty('--tg-hint', tg.hintColor || '#71717a');
-        document.documentElement.style.colorScheme = tg.colorScheme === 'dark' ? 'dark' : 'light';
-        return;
-    }
-    state.isTelegram = false;
-    let stored = localStorage.getItem('mock_telegram_id');
-    if (!stored) { stored = String(-Math.floor(Math.random() * 1000000)); localStorage.setItem('mock_telegram_id', stored); }
-    state.telegramId = Number(stored);
-    state.user = { first_name: 'Гость', username: null };
+	function initTelegram() {
+	    const tg = window.Telegram?.WebApp;
+	    if (tg) {
+	        state.tg = tg; state.isTelegram = true;
+	        tg.ready(); tg.expand();
+	        state.user = tg.initDataUnsafe?.user || null;
+	        state.telegramId = state.user?.id || Date.now();
+	        // Применяем тему Telegram с высокой контрастностью
+	        const isDark = tg.colorScheme === 'dark';
+	        document.documentElement.style.setProperty('--tg-bg', tg.backgroundColor || (isDark ? '#0b0b1a' : '#f5f5fa'));
+	        document.documentElement.style.setProperty('--tg-text', tg.textColor || (isDark ? '#f1f1f6' : '#1a1a2e'));
+	        document.documentElement.style.setProperty('--tg-button', tg.buttonColor || '#6366f1');
+	        document.documentElement.style.setProperty('--tg-button-text', tg.buttonTextColor || '#ffffff');
+	        document.documentElement.style.setProperty('--tg-hint', tg.hintColor || (isDark ? '#8b8b9e' : '#6b6b80'));
+	        document.documentElement.style.setProperty('--tg-secondary-bg', isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)');
+	        document.documentElement.style.setProperty('--tg-section-bg', isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)');
+	        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+	        return;
+	    }
+	    state.isTelegram = false;
+	    let stored = localStorage.getItem('mock_telegram_id');
+	    if (!stored) { stored = String(-Math.floor(Math.random() * 1000000)); localStorage.setItem('mock_telegram_id', stored); }
+	    state.telegramId = Number(stored);
+	    state.user = { first_name: 'Гость', username: null };
 }
 
 function getTodayStr() { return new Date().toISOString().slice(0, 10); }
@@ -632,37 +647,37 @@ function formatDate() { return new Date().toLocaleDateString('ru-RU', { weekday:
 function isConsentGiven() { return localStorage.getItem(COMPLIANCE_KEY) === 'true'; }
 function getSavedGender() { return localStorage.getItem(GENDER_KEY) || 'male'; }
 
-function acceptConsent() {
-    localStorage.setItem(COMPLIANCE_KEY, 'true');
-    document.getElementById('step-consent').classList.add('hidden');
-    document.getElementById('step-gender').classList.remove('hidden');
-}
-
-function selectGender(gender) {
-    state.selectedGender = gender;
-    document.querySelectorAll('.gender-btn').forEach(b => b.classList.toggle('selected', b.dataset.gender === gender));
-    const btn = document.getElementById('gender-start-btn');
-    btn.disabled = false;
-    btn.className = 'w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 font-bold text-base transition-all duration-200 active:scale-95 shadow-lg shadow-purple-500/20';
-}
-
-function completeOnboarding() {
-    localStorage.setItem(GENDER_KEY, state.selectedGender);
-    state.gender = state.selectedGender;
-    const overlay = document.getElementById('welcome-overlay');
-    overlay.classList.add('fade-out');
-    setTimeout(() => { overlay.classList.add('hidden'); document.body.style.overflow = ''; startApp(); }, 500);
-}
-
-function showWelcome() {
-    const overlay = document.getElementById('welcome-overlay');
-    overlay.classList.remove('hidden', 'fade-out');
-    document.getElementById('step-consent').classList.remove('hidden');
-    document.getElementById('step-gender').classList.add('hidden');
-    document.getElementById('gender-start-btn').disabled = true;
-    document.getElementById('gender-start-btn').className = 'w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 font-bold text-base opacity-40 cursor-not-allowed';
-    document.body.style.overflow = 'hidden';
-}
+	function acceptConsent() {
+	    localStorage.setItem(COMPLIANCE_KEY, 'true');
+	    document.getElementById('step-consent').classList.add('hidden');
+	    document.getElementById('step-gender').classList.remove('hidden');
+	}
+	
+	function selectGender(gender) {
+	    state.selectedGender = gender;
+	    document.querySelectorAll('.gender-btn').forEach(b => b.classList.toggle('selected', b.dataset.gender === gender));
+	    const btn = document.getElementById('gender-start-btn');
+	    btn.disabled = false;
+	    btn.className = 'w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 font-bold text-base transition-all duration-200 active:scale-95 shadow-lg shadow-indigo-500/20';
+	}
+	
+	function completeOnboarding() {
+	    localStorage.setItem(GENDER_KEY, state.selectedGender);
+	    state.gender = state.selectedGender;
+	    const overlay = document.getElementById('welcome-overlay');
+	    overlay.classList.add('fade-out');
+	    setTimeout(() => { overlay.classList.add('hidden'); document.body.style.overflow = ''; startApp(); }, 500);
+	}
+	
+	function showWelcome() {
+	    const overlay = document.getElementById('welcome-overlay');
+	    overlay.classList.remove('hidden', 'fade-out');
+	    document.getElementById('step-consent').classList.remove('hidden');
+	    document.getElementById('step-gender').classList.add('hidden');
+	    document.getElementById('gender-start-btn').disabled = true;
+	    document.getElementById('gender-start-btn').className = 'w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 font-bold text-base opacity-40 cursor-not-allowed';
+	    document.body.style.overflow = 'hidden';
+	}
 
 function hideWelcome() {
     document.getElementById('welcome-overlay').classList.add('hidden');
