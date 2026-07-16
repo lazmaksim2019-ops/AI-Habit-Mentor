@@ -326,7 +326,6 @@ async def chat_stream(
     history = [{"role": "assistant" if m.role == "ai" else "user", "content": m.text} for m in (request.history or [])]
 
     from fastapi.responses import StreamingResponse
-    from fastapi import Request as FastAPIRequest
 
     async def event_stream():
         full_text = ""

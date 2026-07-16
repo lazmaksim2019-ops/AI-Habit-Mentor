@@ -3,7 +3,7 @@ import json
 import logging
 import traceback
 from collections import OrderedDict
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import httpx
 from tenacity import (
