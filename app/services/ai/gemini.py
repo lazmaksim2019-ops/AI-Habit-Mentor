@@ -1,8 +1,14 @@
 import logging
 import traceback
-from typing import List
 
 import httpx
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.services.ai.base import BaseAIProvider
 
@@ -10,18 +16,25 @@ logger = logging.getLogger(__name__)
 
 FALLBACK_RESPONSE = "Извините, сервис временно недоступен. Пожалуйста, попробуйте позже."
 
-# httpx >= 0.28 uses `proxy` (singular); older versions use `proxies` (plural)
 _HTTX_HAS_NEW_PROXY_API = tuple(int(x) for x in httpx.__version__.split(".")[:2]) >= (0, 28)
+
+RETRYABLE_EXCEPTIONS = (
+    httpx.TimeoutException,
+    httpx.ConnectError,
+    httpx.ProxyError,
+    httpx.RemoteProtocolError,
+)
+
+RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
 
 
 class GeminiProvider(BaseAIProvider):
-
     def __init__(self, api_key: str, model: str, embedding_model: str, proxy_url: str | None = None):
         self.api_key = api_key
         self.model = model
         self.embedding_model = embedding_model
         self.base_url = "https://generativelanguage.googleapis.com/v1beta"
-        self._client_kwargs = {"timeout": 60.0}
+        self._client_kwargs: dict[str, object] = {"timeout": 60.0}
 
         if proxy_url:
             safe_url = proxy_url
@@ -39,19 +52,37 @@ class GeminiProvider(BaseAIProvider):
         else:
             logger.info("No proxy configured, connecting directly to Gemini API")
 
-    async def get_embedding(self, text: str) -> List[float]:
+    def _is_retryable_error(self, exc: Exception) -> bool:
+        if isinstance(exc, RETRYABLE_EXCEPTIONS):
+            return True
+        if isinstance(exc, httpx.HTTPStatusError):
+            return exc.response.status_code in RETRYABLE_STATUS_CODES
+        return False
+
+    @retry(
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception_type(RETRYABLE_EXCEPTIONS) | retry_if_exception_type(httpx.HTTPStatusError),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
+    async def _make_request(self, url: str, payload: dict) -> httpx.Response:
+        async with httpx.AsyncClient(**self._client_kwargs) as client:  # type: ignore[arg-type]
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            return response
+
+    async def get_embedding(self, text: str) -> list[float]:
         url = f"{self.base_url}/models/{self.embedding_model}:embedContent?key={self.api_key}"
         payload = {
             "model": f"models/{self.embedding_model}",
             "content": {"parts": [{"text": text}]},
         }
         try:
-            async with httpx.AsyncClient(**self._client_kwargs) as client:
-                logger.debug("Sending embedding request to %s", url[:80] + "...")
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                data = response.json()
-                return data["embedding"]["values"]
+            logger.debug("Sending embedding request to %s", url[:80] + "...")
+            response = await self._make_request(url, payload)
+            data = response.json()
+            return data["embedding"]["values"]
         except httpx.HTTPStatusError as e:
             logger.error(
                 "Gemini embedding API HTTP error: status=%s, body=%s",
@@ -89,12 +120,14 @@ class GeminiProvider(BaseAIProvider):
             "contents": contents,
         }
         try:
-            async with httpx.AsyncClient(**self._client_kwargs) as client:
-                logger.debug("Sending generation request to model=%s proxy=%s", self.model, bool(self._client_kwargs.get("proxy") or self._client_kwargs.get("proxies")))
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                data = response.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"]
+            logger.debug(
+                "Sending generation request to model=%s proxy=%s",
+                self.model,
+                bool(self._client_kwargs.get("proxy") or self._client_kwargs.get("proxies")),
+            )
+            response = await self._make_request(url, payload)
+            data = response.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
         except httpx.HTTPStatusError as e:
             logger.error(
                 "Gemini generation API HTTP error: status=%s, body=%s",

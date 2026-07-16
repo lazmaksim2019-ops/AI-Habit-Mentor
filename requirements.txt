@@ -3,9 +3,16 @@ uvicorn[standard]
 pydantic[email]>=2.0
 pydantic-settings
 asyncpg
-sqlalchemy[ext_asyncio]
+sqlalchemy
 httpx
 python-dotenv
 pgvector
 dnspython
 aiofiles
+alembic
+tenacity
+slowapi
+prometheus-fastapi-instrumentator
+pytest
+pytest-asyncio
+pytest-cov

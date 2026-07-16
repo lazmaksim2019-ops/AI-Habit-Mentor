@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 import uuid
 from datetime import datetime
 
@@ -34,9 +33,7 @@ router = APIRouter()
 
 
 async def _get_or_create_user(telegram_id: int, session: AsyncSession) -> uuid.UUID:
-    result = await session.execute(
-        select(UserLink).where(UserLink.telegram_id == telegram_id)
-    )
+    result = await session.execute(select(UserLink).where(UserLink.telegram_id == telegram_id))
     user_link = result.scalar_one_or_none()
     if user_link is not None:
         return user_link.user_uuid
@@ -60,15 +57,20 @@ async def _get_user_habits_context(user_uuid: uuid.UUID, session: AsyncSession) 
     lines = ["Привычки пользователя (JSON-массив для парсинга):"]
     for h in habits:
         meta = h.meta_kod or {}
-        lines.append(json.dumps({
-            "id": str(h.id),
-            "name": h.name,
-            "type": h.type,
-            "category": h.category,
-            "status": h.status,
-            "target_date": h.target_date.isoformat() if h.target_date else None,
-            "meta_kod": meta,
-        }, ensure_ascii=False))
+        lines.append(
+            json.dumps(
+                {
+                    "id": str(h.id),
+                    "name": h.name,
+                    "type": h.type,
+                    "category": h.category,
+                    "status": h.status,
+                    "target_date": h.target_date.isoformat() if h.target_date else None,
+                    "meta_kod": meta,
+                },
+                ensure_ascii=False,
+            )
+        )
     return "\n".join(lines)
 
 
@@ -102,16 +104,21 @@ def _serialize_habits_context(habits_data: list[UserHabit]) -> str:
     items = []
     for h in habits_data:
         meta = h.meta_kod or {}
-        items.append(json.dumps({
-            "id": str(h.id),
-            "name": h.name,
-            "type": h.type,
-            "category": h.category,
-            "status": h.status,
-            "target_date": h.target_date.isoformat() if h.target_date else None,
-            "meta_kod": meta,
-            "logs_count": len(h.logs or []),
-        }, ensure_ascii=False))
+        items.append(
+            json.dumps(
+                {
+                    "id": str(h.id),
+                    "name": h.name,
+                    "type": h.type,
+                    "category": h.category,
+                    "status": h.status,
+                    "target_date": h.target_date.isoformat() if h.target_date else None,
+                    "meta_kod": meta,
+                    "logs_count": len(h.logs or []),
+                },
+                ensure_ascii=False,
+            )
+        )
     return "[\n" + ",\n".join(items) + "\n]" if items else "[]"
 
 
@@ -134,7 +141,9 @@ def _detect_phase(habits_data: list[UserHabit], history: list) -> int:
     return 2
 
 
-def _build_system_prompt(habits_data: list[UserHabit], memory_context: str, gender: str = "male", current_phase: int = 1) -> str:
+def _build_system_prompt(
+    habits_data: list[UserHabit], memory_context: str, gender: str = "male", current_phase: int = 1
+) -> str:
     gender_instruction = (
         "Обращайся к пользователю в женском роде (готова, сделала)."
         if gender == "female"
@@ -237,7 +246,7 @@ def _habit_to_response(h: UserHabit) -> HabitResponse:
         ),
         target_date=h.target_date.isoformat() if h.target_date else None,
         status=h.status,
-        logs=[TriggerLog(**l) if isinstance(l, dict) else TriggerLog() for l in logs_raw],
+        logs=[TriggerLog(**log_item) if isinstance(log_item, dict) else TriggerLog() for log_item in logs_raw],
         created_at=h.created_at,
         updated_at=h.updated_at,
     )
@@ -256,7 +265,7 @@ def _clean_json_from_response(raw: str) -> str:
     return s
 
 
-@router.post("/api/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
     background_tasks: BackgroundTasks,
@@ -286,7 +295,9 @@ async def chat(
     server_phase = _detect_phase(habits_data, request.history or [])
     current_phase = max(server_phase, request.phase)  # use most advanced phase
 
-    system_prompt = _build_system_prompt(habits_data, memory_context, gender=request.gender, current_phase=current_phase)
+    system_prompt = _build_system_prompt(
+        habits_data, memory_context, gender=request.gender, current_phase=current_phase
+    )
 
     # Build history from request (frontend sends parsed chat history)
     history = [{"role": "assistant" if m.role == "ai" else "user", "content": m.text} for m in (request.history or [])]
@@ -315,23 +326,20 @@ async def chat(
     return ChatResponse(reply=user_message, action=action_data)
 
 
-@router.get("/api/habits", response_model=HabitsListResponse)
+@router.get("/habits", response_model=HabitsListResponse)
 async def get_habits(
     telegram_id: int = Query(..., description="Telegram user ID"),
     session: AsyncSession = Depends(get_async_session),
 ):
     user_uuid = await _get_or_create_user(telegram_id, session)
     result = await session.execute(
-        select(UserHabit)
-        .where(UserHabit.user_uuid == user_uuid)
-        .order_by(UserHabit.created_at.desc())
-        .limit(200)
+        select(UserHabit).where(UserHabit.user_uuid == user_uuid).order_by(UserHabit.created_at.desc()).limit(200)
     )
     habits = result.scalars().all()
     return HabitsListResponse(habits=[_habit_to_response(h) for h in habits])
 
 
-@router.post("/api/habits/batch-create")
+@router.post("/habits/batch-create")
 async def batch_create_habits(
     request: HabitCreateBatchRequest,
     session: AsyncSession = Depends(get_async_session),
@@ -364,13 +372,13 @@ async def batch_create_habits(
                 await session.refresh(habit)
         except Exception as e:
             logger.error("Batch commit failed for user %s: %s", user_uuid, e)
-            raise HTTPException(status_code=500, detail=f"Database error: {str(e)[:200]}")
+            raise HTTPException(status_code=500, detail=f"Database error: {str(e)[:200]}") from e
 
     logger.info("Batch created %d habits for user %s (errors: %d)", len(created), user_uuid, len(errors))
     return HabitsListResponse(habits=[_habit_to_response(h) for h in created])
 
 
-@router.post("/api/habits/set-target-date")
+@router.post("/habits/set-target-date")
 async def set_habit_target_date(
     request: SetTargetDateRequest,
     session: AsyncSession = Depends(get_async_session),
@@ -408,7 +416,7 @@ async def set_habit_target_date(
     return _habit_to_response(habit)
 
 
-@router.post("/api/habits/log-trigger")
+@router.post("/habits/log-trigger")
 async def log_trigger(
     request: LogTriggerRequest,
     session: AsyncSession = Depends(get_async_session),
@@ -423,11 +431,13 @@ async def log_trigger(
         raise HTTPException(status_code=404, detail="Habit not found")
 
     logs = list(habit.logs or [])
-    logs.append({
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "intensity": request.intensity,
-        "note": request.note,
-    })
+    logs.append(
+        {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "intensity": request.intensity,
+            "note": request.note,
+        }
+    )
     habit.logs = logs
 
     await session.commit()
@@ -437,7 +447,7 @@ async def log_trigger(
     return _habit_to_response(habit)
 
 
-@router.post("/api/habits/log", response_model=HabitLogResponse)
+@router.post("/habits/log", response_model=HabitLogResponse)
 async def log_habit(
     request: HabitLogRequest,
     session: AsyncSession = Depends(get_async_session),
@@ -471,7 +481,7 @@ async def log_habit(
     )
 
 
-@router.get("/api/diag")
+@router.get("/diag")
 async def diagnostic():
     results = {
         "api_key_set": bool(settings.GEMINI_API_KEY),
@@ -486,6 +496,7 @@ async def diagnostic():
 
     try:
         import httpx
+
         provider = GeminiProvider(
             api_key=settings.GEMINI_API_KEY,
             model=settings.GEMINI_MODEL,
@@ -496,13 +507,15 @@ async def diagnostic():
             "contents": [{"parts": [{"text": "Say OK"}]}],
         }
         url = f"{provider.base_url}/models/{provider.model}:generateContent?key={provider.api_key}"
-        async with httpx.AsyncClient(**provider._client_kwargs) as client:
+        async with httpx.AsyncClient(**provider._client_kwargs) as client:  # type: ignore[arg-type]
             resp = await client.post(url, json=test_payload)
             results["gemini_test_status"] = resp.status_code
             if resp.status_code == 200:
                 data = resp.json()
                 results["gemini_test_ok"] = True
-                results["gemini_test_reply"] = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")[:200]
+                results["gemini_test_reply"] = (
+                    data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")[:200]
+                )
             else:
                 results["gemini_test_ok"] = False
                 results["gemini_test_body"] = resp.text[:500]
@@ -510,6 +523,114 @@ async def diagnostic():
         results["gemini_test_ok"] = False
         results["gemini_test_error"] = str(e)[:500]
         import traceback
+
         results["gemini_test_traceback"] = traceback.format_exc()[:500]
 
     return results
+
+
+@router.post("/webhook")
+async def telegram_webhook(update: dict):
+    """Telegram Bot webhook endpoint.
+    Принимает апдейты от Telegram Bot API и отправляет ответ через AI-ментора.
+    """
+    import httpx
+
+    message = update.get("message", {})
+    if not message:
+        return {"ok": True}
+
+    chat_id = message.get("chat", {}).get("id")
+    text = message.get("text", "")
+    from_user = message.get("from", {})
+
+    if not chat_id or not text:
+        return {"ok": True}
+
+    # Пропускаем команды
+    if text.startswith("/"):
+        if text == "/start":
+            reply_text = (
+                "🧠 *Neuro-Adaptive AI Habit Mentor*\n\n"
+                "Я — AI-ментор по привычкам. Открой Mini App, чтобы начать:\n"
+                "👉 @aIhabitmentorbot\n\n"
+                "Или просто напиши мне о своей привычке!"
+            )
+        else:
+            return {"ok": True}
+        async with httpx.AsyncClient(timeout=30) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={"chat_id": chat_id, "text": reply_text, "parse_mode": "Markdown"},
+            )
+        return {"ok": True}
+
+    if not settings.GEMINI_API_KEY:
+        async with httpx.AsyncClient(timeout=30) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
+                json={
+                    "chat_id": chat_id,
+                    "text": "Сервис временно недоступен. Попробуйте позже.",
+                },
+            )
+        return {"ok": True}
+
+    # Создаём сессию БД и обрабатываем сообщение
+    from app.database.session import get_session_maker
+
+    session_maker = get_session_maker()
+    async with session_maker() as session:
+        try:
+            telegram_id = from_user.get("id", chat_id)
+            user_uuid = await _get_or_create_user(telegram_id, session)
+
+            cleaned = await anonymize_text(text)
+
+            ai_provider = GeminiProvider(
+                api_key=settings.GEMINI_API_KEY,
+                model=settings.GEMINI_MODEL,
+                embedding_model=settings.GEMINI_EMBEDDING_MODEL,
+                proxy_url=settings.proxy_url,
+            )
+
+            embedding = await ai_provider.get_embedding(cleaned)
+            memory_context = await get_relevant_memory(session, user_uuid, embedding)
+
+            result = await session.execute(
+                select(UserHabit)
+                .where(UserHabit.user_uuid == user_uuid)
+                .order_by(UserHabit.created_at.desc())
+                .limit(50)
+            )
+            habits_data = list(result.scalars().all())
+
+            phase = _detect_phase(habits_data, [])
+            system_prompt = _build_system_prompt(habits_data, memory_context, current_phase=phase)
+
+            history = []
+            raw_reply = await ai_provider.generate_response(system_prompt, history, cleaned)
+
+            clean_json = _clean_json_from_response(raw_reply)
+            reply_text = raw_reply
+            try:
+                parsed = json.loads(clean_json)
+                reply_text = parsed.get("message", raw_reply)
+            except json.JSONDecodeError:
+                pass
+
+            # Сохраняем в векторную память
+            import asyncio
+
+            asyncio.ensure_future(_save_memory_background(user_uuid, cleaned, reply_text, ai_provider))
+
+        except Exception as e:
+            logger.error("Webhook error: %s", e)
+            reply_text = "Произошла ошибка. Попробуйте ещё раз."
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        await client.post(
+            f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/sendMessage",
+            json={"chat_id": chat_id, "text": reply_text, "parse_mode": "Markdown"},
+        )
+    return {"ok": True}

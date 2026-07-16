@@ -1,5 +1,4 @@
 import logging
-from typing import List
 from uuid import UUID
 
 from sqlalchemy import text
@@ -11,7 +10,7 @@ logger = logging.getLogger(__name__)
 async def get_relevant_memory(
     session: AsyncSession,
     user_uuid: UUID,
-    current_embedding: List[float],
+    current_embedding: list[float],
     limit: int = 3,
 ) -> str:
     if not current_embedding:

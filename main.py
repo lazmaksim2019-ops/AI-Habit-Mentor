@@ -1,28 +1,26 @@
-import asyncio
 import logging
 import os
 import pathlib
-import sys
+import uuid
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from prometheus_fastapi_instrumentator import Instrumentator
+
+from app.api.endpoints import router as api_router
+from app.core.config import settings
+from app.database.session import get_engine, init_db
+from app.middleware.rate_limit import setup_rate_limiter
 
 BASE_DIR = pathlib.Path(__file__).parent
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+LOG_FORMAT = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 logger = logging.getLogger(__name__)
-
-from app.api.endpoints import router as api_router
-from app.database.session import get_engine, init_db
-
-asyncio.set_event_loop_policy(asyncio.DefaultEventLoopPolicy())
 
 
 @asynccontextmanager
@@ -30,6 +28,30 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing database tables...")
     await init_db()
     logger.info("Database tables initialized")
+
+    # Регистрируем Telegram webhook при старте
+    if settings.TELEGRAM_BOT_TOKEN and settings.GEMINI_API_KEY:
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                public_url = os.getenv("RENDER_EXTERNAL_URL", "")
+                if not public_url:
+                    public_url = f"http://localhost:{os.getenv('PORT', '8000')}"
+                webhook_url = f"{public_url}/api/v1/webhook"
+                resp = await client.post(
+                    f"https://api.telegram.org/bot{settings.TELEGRAM_BOT_TOKEN}/setWebhook",
+                    json={"url": webhook_url},
+                )
+                if resp.status_code == 200:
+                    logger.info("Telegram webhook set to %s", webhook_url)
+                else:
+                    logger.warning("Telegram webhook setup failed: %s", resp.text)
+        except Exception as e:
+            logger.warning("Failed to set Telegram webhook: %s", e)
+    else:
+        logger.info("TELEGRAM_BOT_TOKEN not set, skipping webhook registration")
+
     yield
     engine = get_engine()
     logger.info("Disposing database engine...")
@@ -43,15 +65,28 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+allowed_origins = [
+    "https://web.telegram.org",
+    "https://web.telegram.org/k/",
+    "https://web.telegram.org/a/",
+    "https://telegram.org",
+]
+if settings.DATABASE_URL and "localhost" in settings.DATABASE_URL:
+    allowed_origins.append("*")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
-app.include_router(api_router)
+setup_rate_limiter(app)
+
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+
+app.include_router(api_router, prefix="/api/v1")
 
 templates_dir = BASE_DIR / "src" / "templates"
 static_dir = BASE_DIR / "src" / "static"
@@ -65,6 +100,15 @@ INDEX_HTML_PATH = templates_dir / "index.html"
 INDEX_HTML_CACHE: str | None = None
 
 
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4())[:8])
+    request.state.request_id = request_id
+    response: Response = await call_next(request)
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     global INDEX_HTML_CACHE
@@ -75,7 +119,8 @@ async def index():
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.exception("Unhandled exception on %s %s", request.method, request.url)
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.exception("Unhandled exception [%s] on %s %s", request_id, request.method, request.url)
     return JSONResponse(
         status_code=500,
         content={"detail": "Внутренняя ошибка сервера. Попробуйте позже."},

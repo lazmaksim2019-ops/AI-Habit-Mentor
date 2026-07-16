@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str
     GEMINI_MODEL: str = "gemini-3.1-flash-lite"
     GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
+    TELEGRAM_BOT_TOKEN: str = ""
     PROXY_HOST: str | None = None
     PROXY_PORT: int | None = None
     PROXY_USER: str | None = None

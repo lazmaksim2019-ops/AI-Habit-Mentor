@@ -529,7 +529,7 @@
             </button>
             <div id="diag-result" class="mt-3 text-xs hidden" style="color:var(--tg-hint);"></div>
             <p class="text-xs mt-2" style="color:var(--tg-hint);">
-                Результаты также доступны в <code style="background:rgba(255,255,255,0.06); padding:1px 4px; border-radius:3px;">/api/diag</code>
+                Результаты также доступны в <code style="background:rgba(255,255,255,0.06); padding:1px 4px; border-radius:3px;">/api/v1/diag</code>
             </p>
         </div>
     </div>
@@ -682,13 +682,13 @@ async function apiPost(endpoint, body) {
 }
 
 async function loadHabits() {
-    try { const d = await apiGet(`/api/habits?telegram_id=${state.telegramId}`); state.habits = d.habits || []; }
+    try { const d = await apiGet(`/api/v1/habits?telegram_id=${state.telegramId}`); state.habits = d.habits || []; }
     catch (e) { console.warn('Failed to load habits:', e); state.habits = []; }
 }
 
 async function sendChatMessage(message) {
     const phase = _detectClientPhase();
-    const data = await apiPost('/api/chat', {
+    const data = await apiPost('/api/v1/chat', {
         telegram_id: state.telegramId,
         message,
         gender: state.gender,
@@ -710,15 +710,15 @@ function _detectClientPhase() {
 }
 
 async function batchCreateHabits(habits) {
-    return apiPost('/api/habits/batch-create', { telegram_id: state.telegramId, habits });
+    return apiPost('/api/v1/habits/batch-create', { telegram_id: state.telegramId, habits });
 }
 
 async function setTargetDate(name, date, type = 'pre_destruction') {
-    return apiPost('/api/habits/set-target-date', { telegram_id: state.telegramId, name, target_date: date, type });
+    return apiPost('/api/v1/habits/set-target-date', { telegram_id: state.telegramId, name, target_date: date, type });
 }
 
 async function logTrigger(habitId, intensity = 1, note = '') {
-    return apiPost('/api/habits/log-trigger', { telegram_id: state.telegramId, habit_id: habitId, intensity, note });
+    return apiPost('/api/v1/habits/log-trigger', { telegram_id: state.telegramId, habit_id: habitId, intensity, note });
 }
 
 /* ═══ DATE PICKER ═══ */
@@ -1009,7 +1009,7 @@ function renderHabitsList() {
             card.classList.add('disabled');
             try {
                 const status = habit.type === 'completed' ? 'stabilization' : 'completed';
-                await apiPost('/api/habits/set-target-date', { telegram_id: state.telegramId, name: habit.name, target_date: habit.target_date || getTodayStr(), type: status });
+                await apiPost('/api/v1/habits/set-target-date', { telegram_id: state.telegramId, name: habit.name, target_date: habit.target_date || getTodayStr(), type: status });
                 showToast(status === 'completed' ? 'Привычка завершена!' : 'Привычка активна');
                 await loadHabits();
                 renderTracker();
@@ -1441,9 +1441,9 @@ async function runDiagnostic() {
     const btn = document.getElementById('diag-btn');
     const result = document.getElementById('diag-result');
     btn.disabled = true; btn.textContent = 'Проверка...';
-    result.classList.remove('hidden'); result.innerHTML = 'Запрос к /api/diag...';
+    result.classList.remove('hidden'); result.innerHTML = 'Запрос к /api/v1/diag...';
     try {
-        const res = await fetch('/api/diag'); const data = await res.json();
+        const res = await fetch('/api/v1/diag'); const data = await res.json();
         let html = '<div class="space-y-1.5">';
         for (const [key, val] of Object.entries(data)) {
             const color = val === true ? '#4ade80' : val === false ? '#f87171' : 'var(--tg-hint)';
