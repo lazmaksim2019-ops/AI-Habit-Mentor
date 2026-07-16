@@ -16,7 +16,7 @@
       <img src="https://img.shields.io/codecov/c/github/lazmaksim2019-ops/AI-Habit-Mentor?style=for-the-badge&logo=codecov&label=Coverage"/>
     </a>
     <img src="https://img.shields.io/badge/Ruff-passing-brightgreen?style=for-the-badge&logo=python" alt="Ruff" />
-    <img src="https://img.shields.io/badge/mypy-strict-blue?style=for-the-badge&logo=python" alt="mypy" />
+    <img src="https://img.shields.io/badge/mypy-checked-blue?style=for-the-badge&logo=python" alt="mypy" />
     <img src="https://img.shields.io/badge/tests-22_%2F_22-green?style=for-the-badge&logo=pytest" alt="Tests" />
     <img src="https://img.shields.io/badge/Telegram-Mini_App-26A5E4?style=for-the-badge&logo=telegram&logoColor=white" alt="Telegram" />
     <img src="https://img.shields.io/badge/Security-%D0%A4%D0%97--152_Compliant-success?style=for-the-badge&logo=shield" alt="Security" />
