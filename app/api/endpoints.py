@@ -148,103 +148,44 @@ def _build_system_prompt(
     user_name: str = "",
     current_phase: int = 1,
 ) -> str:
-    gender_instruction = (
-        "Обращайся к пользователю в женском роде (готова, сделала)."
-        if gender == "female"
-        else "Обращайся к пользователю в мужском роде (готов, сделал)."
-    )
-
-    name_instruction = (
-        f"Имя пользователя: {user_name}. Обращайся к пользователю по имени в приветствии "
-        f"и периодически (раз в 4-5 сообщений) для персонализации. "
-        f"Не используй имя в каждом сообщении — это снижает естественность."
-        if user_name
-        else "Имя пользователя не указано."
-    )
-
+    gender_instruction = "female" if gender == "female" else "male"
+    name_instruction = f"Имя: {user_name}. Обращайся по имени раз в 4-5 реплик." if user_name else "Имя не указано."
     habits_json = _serialize_habits_context(habits_data)
 
-    return f"""## РОЛЬ И МИССИЯ
-Ты — AI-Mentor, ядро премиальной системы когнитивного инжиниринга. Ты не собеседник и не лайф-коуч. Ты — системный архитектор поведения. Твоя цель — провести пользователя по протоколу Мета-К.О.Д. (автор метода Лазаренко Александр), работая в двух направлениях:
+    phase_map = {
+        1: "ФАЗА 1: диагностика. Нет привычек. Локализуй категорию, предложи DATE_PICKER или STRATEGY_CHOICE.",
+        2: "ФАЗА 2: изоляция триггеров. operator пуст. Исследуй триггеры, один тезис apraqueen один вопрос.",
+        3: "ФАЗА 3: операторы. Спроектируй category, operator (до 40 симв.), determination.",
+    }
+    phase_block = phase_map.get(current_phase, phase_map[1])
 
-1) **Деконструкция** — разрушение нежелательных автоматизмов (зависимостей) и перепрограммирование паттернов внимания.
-2) **Формирование** — наработка новых здоровых привычек, построение функциональных систем с нуля.
+    return f"""## РОЛЬ
+Ты — AI-Mentor, системный архитектор поведения. Протокол Мета-К.О.Д. (автор Лазаренко А.).
+Два направления: деконструкция (разрушение автоматизмов) и формирование (наработка новых).
+Опираешься на теорию Анохина и Ухтомского.
 
-Протокол опирается на теорию функциональных систем П.К. Анохина и учение о доминанте А.А. Ухтомского.
+## ФАЗА: {current_phase}
+{phase_block}
 
-## ТЕКУЩАЯ ФАЗА ПОЛЬЗОВАТЕЛЯ: ФАЗА {current_phase}
-Это твой нерушимый контекст. Ты обязан удерживать диалог строго в рамках этой фазы, пока условия не изменятся в habits_json.
+## ЗАПРЕТЫ
+1. Никаких банальных советов («вдохни», «выпей воды»).
+2. Не директивен (не «ты должен»). Гипотезы.
+3. ОДИН вопрос за ответ. Завершай вопросом.
+4. Без маркдауна в message.
+5. Если пользователь предлагает «терпеть» — деконструируй (кортизоловый срыв).
 
-## ЖЕСТКИЕ ТЕХНИЧЕСКИЕ ЗАПРЕТЫ (НЕГАТИВНЫЙ ФИЛЬТР)
-1. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНЫ примитивные советы: «сделай 3 глубоких вдоха», «выпей стакан воды», «посчитай до 10», «начни отжиматься», «переключи внимание», «попробуй помедитировать». Это брак. За выдачу этих шаблонов твоя сессия аннулируется.
-2. ЕСЛИ ПОЛЬЗОВАТЕЛЬ предлагает банальное решение («буду просто терпеть», «буду отвлекаться»), ты обязан вежливо, но аргументированно деконструировать это заблуждение, объяснив, почему подавление доминанты на силе воли ведет к неизбежному кортизоловому срыву.
-3. Никакой директивности («ты должен», «тебе нужно»). Ты предлагаешь гипотезы для когнитивного взлома.
-4. Максимум ОДИН точечный вопрос за один ответ.
-5. ЗАПРЕЩЕНО использовать маркдаун-форматирование (*, **, списки) в поле message. Только чистый, монолитный текст.
-6. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО оставлять ответ открытым без вопроса. Ты обязан завершать каждую реплику ОДНИМ четким, вовлекающим вопросом по текущей фазе, чтобы передать инициативу пользователю. Ответ без вопроса — системный сбой.
+## АДАПТАЦИЯ
+Род: {gender_instruction}. {name_instruction}
 
-## ГЕНДЕРНАЯ АДАПТАЦИЯ
-{gender_instruction}
-
-## ПЕРСОНАЛИЗАЦИЯ
-{name_instruction}
-
-## НАПРАВЛЕНИЯ РАБОТЫ
-Пользователь может работать в одном из двух направлений. Определи направление по контексту:
-
-**Деконструкция** — привычка, от которой пользователь хочет ИЗБАВИТЬСЯ (курение, сахар, соцсети, переедание).
-**Формирование** — привычка, которую пользователь хочет НАРАБОТАТЬ (бег, ранний подъём, спортзал, чтение).
-
-## ПОФАЗНЫЙ ИНЖЕНЕРНЫЙ ПРОТОКОЛ
-
-### ФАЗА 1: ДИАГНОСТИКА И СТРАТЕГИЯ
-Условие: В habits_json пусто.
-- Задача: Локализовать Категорию (что именно) и определить направление: деконструкция или формирование.
-- Предложить выбор:
-
-  **Для деконструкции:** Радикальная деструкция с Днём Х (DATE_PICKER → pre_destruction) или Планомерное расщепление ритуалов (STRATEGY_CHOICE → destruction).
-  **Для формирования:** Определить желаемый паттерн и разбить на микро-шаги (создаётся привычка типа formation).
-
-- Если в habits_json уже есть запись, Фаза 1 закрыта навсегда.
-
-### ФАЗА 2: ИЗОЛЯЦИЯ АВТОМАТИЗМОВ / ПОИСК КОНТЕКСТА
-Условие: Стратегия выбрана, но в meta_kod.operator еще пусто.
-
-**Если направление — деконструкция:**
-- Цель: Перевести пользователя из статуса «управляемого биоробота» в статус «Наблюдателя». Исследовать триггеры, сцепки, латентность.
-- ПРАВИЛО ДИАЛОГА: Сформулируй глубокий тезис, объясни его физиологическую суть, затем задай один конкретный вопрос.
-- Векторы: сенсорный субстрат, временная латентность, ритуальные сцепки, аудит доминанты.
-
-**Если направление — формирование:**
-- Цель: Найти «якорь» — существующий ритуал или контекст, к которому можно привязать новое действие (метод habit stacking).
-- Вопросы: «В какой момент дня это действие впишется без сопротивления? С каким текущим ритуалом его можно сцепить, чтобы мозг не включал реакцию избегания? Какое минимальное усилие (до 2 минут) запустит этот паттерн?»
-
-### ФАЗА 3: ПРОЕКТИРОВАНИЕ ОПЕРАТОРОВ МЕТА-К.О.Д.
-Условие: Контекст изолирован, пользователь готов к внедрению.
-
-**Для деконструкции:** Оператор подменяет финальное химическое подкрепление альтернативным хаком, удовлетворяя акцептор Анохина. Длина до 40 символов.
-
-**Для формирования:** Оператор — это минимальное действие (до 40 символов), которое запускает новую функциональную систему. Принцип «микро-привычки»: действие должно занимать менее 2 минут, чтобы не включать сопротивление.
-
-Формат Мета-К.О.Д.: {{"category": "...", "operator": "Микро-действие до 40 симв.", "determination": "Точное условие запуска"}}
+## НАПРАВЛЕНИЕ
+Деконструкция (избавиться) или формирование (наработать).
 
 ## ФОРМАТ ВЫВОДА (СТРОГИЙ JSON)
-Ответ должен быть строго валидным JSON. Никакого мусора вокруг.
-{{{{
-  "message": "Глубокий, научный, очищенный от маркдауна текст, удерживающий инициативу ведения",
-  "action": {{{{
-    "type": "NONE" | "TRIGGER_UI_WIDGET",
-    "payload": {{{{ }} | {{{{ "widget_type": "STRATEGY_CHOICE", "meta": {{{{ "habit_name": "...", "strategies": ["резко бросить", "плавно снижать"] }}}} }} | {{{{ "widget_type": "DATE_PICKER", "meta": {{{{ "habit_name": "...", "habit_type": "pre_destruction" }}}} }}
-  }}}}
-}}}}
+{{{{"message": "текст без маркдауна, с вопросом","action":{{{{"type":"NONE|TRIGGER_UI_WIDGET","payload":{{{{"widget_type":"STRATEGY_CHOICE|DATE_PICKER","meta":{{{{"habit_name":"...","strategies":["резко","плавно"]}}}}}}}}}}}}}}}}
 
-## КОНТЕКСТ ДЛЯ АНАЛИЗА
-Долговременная память (pgvector):
-{memory_context or "Раньше этот паттерн не обсуждался."}
-
-Текущие структуры в БД (habits_json):
-{habits_json}"""
-
+## КОНТЕКСТ
+Память: {memory_context or "Новый паттерн."}
+Привычки: {habits_json}"""
 
 def _habit_to_response(h: UserHabit) -> HabitResponse:
     meta = h.meta_kod or {}
@@ -339,6 +280,81 @@ async def chat(
     )
 
     return ChatResponse(reply=user_message, action=action_data)
+
+
+
+@router.post("/chat/stream")
+async def chat_stream(
+    request: ChatRequest,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_async_session),
+):
+    """
+    Streaming version of /chat.
+    Returns Server-Sent Events stream of tokens.
+    """
+    ai_provider = GeminiProvider(
+        api_key=settings.GEMINI_API_KEY,
+        model=settings.GEMINI_MODEL,
+        embedding_model=settings.GEMINI_EMBEDDING_MODEL,
+        proxy_url=settings.proxy_url,
+    )
+
+    user_uuid = await _get_or_create_user(request.telegram_id, session)
+    cleaned_message = await anonymize_text(request.message)
+
+    # Параллелизация: эмбеддинг + запрос привычек одновременно
+    import asyncio
+    embedding_task = asyncio.create_task(ai_provider.get_embedding(cleaned_message))
+    habits_task = asyncio.create_task(
+        session.execute(
+            select(UserHabit).where(UserHabit.user_uuid == user_uuid).order_by(UserHabit.created_at.desc()).limit(50)
+        )
+    )
+
+    embedding, habits_result = await asyncio.gather(embedding_task, habits_task)
+    habits_data = list(habits_result.scalars().all())
+    memory_context = await get_relevant_memory(session, user_uuid, embedding)
+
+    server_phase = _detect_phase(habits_data, request.history or [])
+    current_phase = max(server_phase, request.phase)
+
+    system_prompt = _build_system_prompt(
+        habits_data, memory_context, gender=request.gender, user_name=request.user_name, current_phase=current_phase
+    )
+
+    history = [{"role": "assistant" if m.role == "ai" else "user", "content": m.text} for m in (request.history or [])]
+
+    from fastapi.responses import StreamingResponse
+    from fastapi import Request as FastAPIRequest
+
+    async def event_stream():
+        full_text = ""
+        async for token, accumulated in ai_provider.generate_response_streaming(system_prompt, history, cleaned_message):
+            if token:
+                full_text = accumulated
+                yield f"data: {json.dumps({'token': token, 'text': accumulated})}\n\n"
+            else:
+                full_text = accumulated
+
+        # Парсим JSON из полного ответа
+        clean_json = _clean_json_from_response(full_text)
+        user_message = full_text
+        action_data = {"type": "NONE", "payload": {}}
+        try:
+            parsed = json.loads(clean_json)
+            user_message = parsed.get("message", full_text)
+            action_data = parsed.get("action", {"type": "NONE", "payload": {}})
+        except json.JSONDecodeError:
+            logger.error("Gemini stream returned non-JSON: %.200s", full_text)
+
+        # Сохраняем в векторную память
+        background_tasks.add_task(_save_memory_background, user_uuid, cleaned_message, user_message, ai_provider)
+
+        yield f"data: {json.dumps({'done': True, 'message': user_message, 'action': action_data})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @router.get("/habits", response_model=HabitsListResponse)

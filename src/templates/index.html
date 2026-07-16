@@ -701,8 +701,59 @@ async function sendChatMessage(message) {
         phase,
         history: state.chatHistory.slice(-10).map(m => ({ role: m.role, text: m.text })),
     });
-    // Backend now returns { reply: "clean text", action: { type, payload } }
     return data;
+}
+
+async function sendChatMessageStream(message, onToken, onDone) {
+    const phase = _detectClientPhase();
+    try {
+        const resp = await fetch('/api/v1/chat/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                telegram_id: state.telegramId,
+                message,
+                gender: state.gender,
+                user_name: state.userName,
+                phase,
+                history: state.chatHistory.slice(-10).map(m => ({ role: m.role, text: m.text })),
+            }),
+        });
+        if (!resp.ok) throw new Error('Stream error: ' + resp.status);
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const dataStr = line.slice(6).trim();
+                    if (dataStr === '[DONE]') continue;
+                    try {
+                        const data = JSON.parse(dataStr);
+                        if (data.done) {
+                            onDone(data.message, data.action);
+                            return data;
+                        }
+                        if (data.token) {
+                            fullText = data.text;
+                            onToken(fullText);
+                        }
+                    } catch (_) {}
+                }
+            }
+        }
+        onDone(fullText, { type: 'NONE', payload: {} });
+        return { reply: fullText, action: { type: 'NONE', payload: {} } };
+    } catch (e) {
+        console.error('Stream error, falling back to /chat:', e);
+        return sendChatMessage(message);
+    }
 }
 
 function _detectClientPhase() {
@@ -1198,28 +1249,55 @@ async function handleChatSend() {
     state.isChatLoading = true;
     renderChat();
 
-    let response;
-    try { response = await sendChatMessage(text); }
-    catch (e) { response = { reply: '⚠️ Произошла ошибка. Попробуйте ещё раз.', action: { type: 'NONE' } }; console.error('Chat error:', e); }
-
-    const parsed = parseAiReply(response.reply);
-    // Backend provides structured action — use it for widget generation
-    const backendAction = response.action;
-    const widget = backendAction?.type === 'TRIGGER_UI_WIDGET' ? _widgetFromAction(backendAction) : parsed.widget;
-    // Strip strategy widget if already chosen
-    if (state.strategyChosen && widget?.includes('inline-strategy-wrap')) {
-        parsed.widget = null;
-    }
-    state.chatHistory.push({ role: 'ai', text: parsed.message, widget: widget || null });
-    state.isChatLoading = false;
+    // Create a placeholder AI message that will be filled by streaming
+    state.chatHistory.push({ role: 'ai', text: '' });
+    const msgIdx = state.chatHistory.length - 1;
     renderChat();
-    saveChatHistory();
+
+    let finalAction = { type: 'NONE', payload: {} };
+    try {
+        await sendChatMessageStream(text,
+            // onToken: update the placeholder message with accumulated text
+            (accumulatedText) => {
+                const parsed = parseAiReply(accumulatedText);
+                state.chatHistory[msgIdx].text = parsed.message;
+                // Show widget during streaming if it appeared
+                const w = parsed.widget;
+                if (w && !state.chatHistory[msgIdx].widget) {
+                    state.chatHistory[msgIdx].widget = w;
+                }
+                renderChat();
+            },
+            // onDone
+            (finalMessage, action) => {
+                const parsed = parseAiReply(finalMessage);
+                const backendAction = action;
+                const widget = backendAction?.type === 'TRIGGER_UI_WIDGET' ? _widgetFromAction(backendAction) : parsed.widget;
+                if (state.strategyChosen && widget?.includes('inline-strategy-wrap')) {
+                    state.chatHistory[msgIdx].widget = null;
+                } else if (widget) {
+                    state.chatHistory[msgIdx].widget = widget;
+                }
+                state.chatHistory[msgIdx].text = parsed.message;
+                finalAction = backendAction;
+                state.isChatLoading = false;
+                renderChat();
+                saveChatHistory();
+            }
+        );
+    } catch (e) {
+        state.chatHistory[msgIdx].text = '⚠️ Произошла ошибка. Попробуйте ещё раз.';
+        state.isChatLoading = false;
+        renderChat();
+        console.error('Chat error:', e);
+    }
+
     await loadHabits();
     renderTracker();
     renderProgress();
 
-    if (backendAction?.type === 'TRIGGER_UI_WIDGET') {
-        const wType = backendAction.payload?.widget_type;
+    if (finalAction?.type === 'TRIGGER_UI_WIDGET') {
+        const wType = finalAction.payload?.widget_type;
         if (wType === 'DATE_PICKER' || wType === 'STRATEGY_CHOICE') {
             setTimeout(() => {
                 const container = document.getElementById('chat-messages');

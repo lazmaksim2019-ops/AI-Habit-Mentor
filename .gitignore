@@ -33,3 +33,6 @@ Desktop.ini
 assets/screenshots/
 *.log
 codecov.exe
+
+# Agent plans
+.zcode/
