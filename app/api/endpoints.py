@@ -168,10 +168,10 @@ def _build_system_prompt(
         phase_block = phase_map.get(current_phase, phase_map[1])
 
     # Параметризация схемы вывода
+    strategy_note = ""
+    date_note = ""
     if strategy_chosen:
         strategy_note = "Стратегия УЖЕ выбрана пользователем. КАТЕГОРИЧЕСКИ запрещено предлагать STRATEGY_CHOICE. Исследуй триггеры."
-    else:
-        strategy_note = ""
 
     if date_chosen:
         date_note = "День Х УЖЕ назначен. КАТЕГОРИЧЕСКИ запрещено предлагать DATE_PICKER."
@@ -181,7 +181,7 @@ def _build_system_prompt(
     else:
         widget_types = "STRATEGY_CHOICE|DATE_PICKER"
 
-    extra_constraint = (strategy_note + " " + date_note).strip() if (strategy_note or date_note) else ""
+    extra_constraint = (strategy_note + " " + date_note).strip()
 
     return f"""## РОЛЬ
 Ты — AI-Mentor, системный архитектор поведения. Протокол Мета-К.О.Д. (автор Лазаренко А.).
