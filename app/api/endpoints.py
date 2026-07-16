@@ -159,7 +159,7 @@ def _build_system_prompt(
         2: "ФАЗА 2: изоляция триггеров. operator пуст. Исследуй триггеры, один тезис apraqueen один вопрос.",
         3: "ФАЗА 3: операторы. Спроектируй category, operator (до 40 симв.), determination.",
     }
-    
+
     # Если стратегия выбрана, но фаза 1 — переходим к фазе 2
     if strategy_chosen and current_phase == 1:
         phase_block = "ФАЗА 2: изоляция триггеров. Стратегия выбрана. Исследуй триггеры, один тезис — один вопрос."
@@ -260,7 +260,12 @@ async def chat(
     current_phase = max(server_phase, request.phase)  # use most advanced phase
 
     system_prompt = _build_system_prompt(
-        habits_data, memory_context, gender=request.gender, user_name=request.user_name, current_phase=current_phase, strategy_chosen=request.strategy_chosen
+        habits_data,
+        memory_context,
+        gender=request.gender,
+        user_name=request.user_name,
+        current_phase=current_phase,
+        strategy_chosen=request.strategy_chosen,
     )
 
     # Build history from request (frontend sends parsed chat history)
@@ -328,7 +333,12 @@ async def chat_stream(
     current_phase = max(server_phase, request.phase)
 
     system_prompt = _build_system_prompt(
-        habits_data, memory_context, gender=request.gender, user_name=request.user_name, current_phase=current_phase, strategy_chosen=request.strategy_chosen
+        habits_data,
+        memory_context,
+        gender=request.gender,
+        user_name=request.user_name,
+        current_phase=current_phase,
+        strategy_chosen=request.strategy_chosen,
     )
 
     history = [{"role": "assistant" if m.role == "ai" else "user", "content": m.text} for m in (request.history or [])]
