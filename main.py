@@ -111,6 +111,7 @@ async def add_request_id(request: Request, call_next):
 
 
 @app.get("/", response_class=HTMLResponse)
+@app.head("/", response_class=HTMLResponse)
 async def index():
     global INDEX_HTML_CACHE
     if INDEX_HTML_CACHE is None:
@@ -129,6 +130,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 @app.get("/health")
+@app.head("/health")
 async def health():
     return {"status": "ok"}
 
